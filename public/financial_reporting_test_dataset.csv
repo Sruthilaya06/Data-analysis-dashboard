@@ -1,0 +1,16 @@
+Period,Department,Metric,Scenario,Amount_INR
+2025-Q1,Enterprise Sales,Gross Revenue,Actual,6200000
+2025-Q1,Core Infrastructure,Cost of Goods Sold,Actual,3100000
+2025-Q1,Global Operations,Operating Expense,Actual,1450000
+2025-Q2,Enterprise Sales,Gross Revenue,Actual,6800000
+2025-Q2,Core Infrastructure,Cost of Goods Sold,Actual,3300000
+2025-Q2,Global Operations,Operating Expense,Actual,1520000
+2025-Q3,Enterprise Sales,Gross Revenue,Actual,7100000
+2025-Q3,Core Infrastructure,Cost of Goods Sold,Actual,3450000
+2025-Q3,Global Operations,Operating Expense,Actual,1600000
+2025-Q4,Enterprise Sales,Gross Revenue,Budget,7500000
+2025-Q4,Core Infrastructure,Cost of Goods Sold,Budget,3600000
+2025-Q4,Global Operations,Operating Expense,Budget,1650000
+2026-Q1,Customer Success,Operating Expense,Forecast,950000
+2026-Q1,Corporate Shared Services,Operating Expense,Budget,1100000
+2026-Q1,Enterprise Sales,Net Margin,Forecast,1850000

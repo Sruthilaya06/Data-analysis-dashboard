@@ -1,0 +1,16 @@
+Order_ID,Order_Date,Customer_Name,Region,Sales_Rep,Product,Category,Units_Sold,Unit_Price_INR,Revenue_INR,Profit_INR
+ORD-1001,2026-01-08,Apex Systems,North America,Sarah Jenkins,Cloud Analytics Enterprise,Software,4,45000,180000,54000
+ORD-1002,2026-01-12,Global Tech Solutions,Europe,Elena Rostova,Precision Edge Server,Hardware,2,92000,184000,36800
+ORD-1003,2026-01-15,Zenith Enterprises,Asia Pacific,David Chen,Systems Integration,Services,1,145000,145000,43500
+ORD-1004,2026-01-19,Vanguard Logistics,North America,Sarah Jenkins,API Gateway Suite,Software,6,21000,126000,37800
+ORD-1005,2026-01-23,Horizon Retail,Latin America,Alex Rivera,Security Compliance Suite,Software,1,88000,88000,26400
+ORD-1006,2026-01-28,Nexus Health,Europe,Elena Rostova,Cloud Analytics Pro,Software,5,28000,140000,42000
+ORD-1007,2026-02-02,Starlight Media,Asia Pacific,David Chen,Network Switch Series X,Hardware,8,26000,208000,41600
+ORD-1008,2026-02-07,Titan Industrial,North America,Marcus Vance,DevOps Managed Service,Services,3,54000,162000,48600
+ORD-1009,2026-02-12,Pioneer Software,Europe,Elena Rostova,Precision Edge Server,Hardware,3,92000,276000,55200
+ORD-1010,2026-02-17,Silverline Financial,North America,Sarah Jenkins,Cloud Analytics Enterprise,Software,7,45000,315000,94500
+ORD-1011,2026-02-22,Echo Networks,Asia Pacific,David Chen,API Gateway Suite,Software,4,21000,84000,25200
+ORD-1012,2026-02-27,Beacon Energy,Latin America,Alex Rivera,Systems Integration,Services,2,145000,290000,87000
+ORD-1013,2026-03-05,Solaria Technologies,North America,Marcus Vance,Security Compliance Suite,Software,3,88000,264000,79200
+ORD-1014,2026-03-12,Quantum Dynamics,Europe,Elena Rostova,DevOps Managed Service,Services,2,54000,108000,32400
+ORD-1015,2026-03-20,Acme Corporation,Asia Pacific,David Chen,Cloud Analytics Pro,Software,6,28000,168000,50400
