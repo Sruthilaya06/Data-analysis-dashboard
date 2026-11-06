@@ -223,15 +223,23 @@ export function classifyColumn(header, rows, colIndex) {
   );
 
   // Semantic keywords indicating Categorical fields
-  // e.g. Department, Location, Employment_Status, Risk_Level, Status, Region, Product, Category, Scenario, Metric, Designation, Role
+  // e.g. Department, Location, Employment_Status, Risk_Level, Status, Region, Product, Category, Scenario, Metric, Designation, Role,
+  // Business, Observation_Level, Risk_Nature, Risk, Risk_Impact, Risk_Likelihood, Repeat_Flag, Quarter, Audit_Type
   const isCategoricalSemantic = (
-    /(^|_)(DEPT|DEPARTMENT|LOCATION|CITY|STATE|COUNTRY|REGION|STATUS|STAGE|LEVEL|RISK|PRIORITY|CATEGORY|TYPE|SECTOR|SEGMENT|GENDER|TIER|SCENARIO|CHANNEL|ROLE|DESIGNATION|METRIC|PRODUCT|REP)($|_)/i.test(norm) ||
+    /(^|_)(DEPT|DEPARTMENT|LOCATION|CITY|STATE|COUNTRY|REGION|STATUS|STAGE|LEVEL|RISK|PRIORITY|CATEGORY|TYPE|SECTOR|SEGMENT|GENDER|TIER|SCENARIO|CHANNEL|ROLE|DESIGNATION|METRIC|PRODUCT|REP|QUARTER|BUSINESS|NATURE|FLAG|IMPACT|LIKELIHOOD|REPEAT|AUDIT)($|_)/i.test(norm) ||
     norm.includes('STATUS') ||
     norm.includes('LEVEL') ||
     norm.includes('DEPT') ||
     norm.includes('REGION') ||
     norm.includes('SCENARIO') ||
-    norm.includes('LOCATION')
+    norm.includes('LOCATION') ||
+    norm.includes('RISK') ||
+    norm.includes('TYPE') ||
+    norm.includes('IMPACT') ||
+    norm.includes('LIKELIHOOD') ||
+    norm.includes('FLAG') ||
+    norm.includes('NATURE') ||
+    norm.includes('QUARTER')
   );
 
   // If header has descriptive semantics:
@@ -244,7 +252,7 @@ export function classifyColumn(header, rows, colIndex) {
 
   // If header has categorical semantics:
   if (isCategoricalSemantic) {
-    if (cardinalityRatio <= 0.85 || distinctCount <= 25) {
+    if (cardinalityRatio <= 0.85 || distinctCount <= 30) {
       return 'CATEGORICAL';
     }
   }
@@ -402,6 +410,7 @@ export function profileCategoricalColumn(values) {
 
     distribution.push({
       category,
+      value: category,
       count,
       percentage: totalValid > 0 ? (count / totalValid) * 100 : 0
     });
@@ -418,8 +427,10 @@ export function profileCategoricalColumn(values) {
     repeatedCount,
     mostFrequent: mostFrequent !== null ? { category: mostFrequent, count: mostFrequentCount, percentage: totalValid ? (mostFrequentCount / totalValid) * 100 : 0 } : null,
     leastFrequent: leastFrequent !== null && leastFrequentCount !== Infinity ? { category: leastFrequent, count: leastFrequentCount, percentage: totalValid ? (leastFrequentCount / totalValid) * 100 : 0 } : null,
-    distribution: distribution.slice(0, 10), // Top 10 for display
-    fullDistribution: distribution
+    distribution: distribution, // complete distribution
+    topDistribution: distribution.slice(0, 10), // Top 10 for compact previews
+    fullDistribution: distribution,
+    frequencies: distribution
   };
 }
 
@@ -728,6 +739,377 @@ export function calculateDataQuality(headers, rows, columnProfiles) {
   };
 }
 
+
+/**
+ * Spearman Rank Correlation Coefficient (monotonic relationship)
+ */
+export function calculateSpearmanCorrelation(valuesA, valuesB) {
+  const paired = [];
+  for (let i = 0; i < Math.min(valuesA.length, valuesB.length); i++) {
+    const a = parseNumericValue(valuesA[i]);
+    const b = parseNumericValue(valuesB[i]);
+    if (a !== null && b !== null) {
+      paired.push({ a, b, originalIdx: i });
+    }
+  }
+
+  if (paired.length < 3) {
+    return { rho: null, observationCount: paired.length, reason: 'Insufficient observations (min 3 required)' };
+  }
+
+  function getRanks(arr, key) {
+    const sorted = arr.map((item, originalIdx) => ({ val: item[key], originalIdx }))
+                      .sort((x, y) => x.val - y.val);
+    const ranks = new Array(arr.length);
+    let i = 0;
+    while (i < sorted.length) {
+      let j = i;
+      while (j < sorted.length - 1 && sorted[j + 1].val === sorted[j].val) {
+        j++;
+      }
+      const avgRank = (i + j + 2) / 2;
+      for (let k = i; k <= j; k++) {
+        ranks[sorted[k].originalIdx] = avgRank;
+      }
+      i = j + 1;
+    }
+    return ranks;
+  }
+
+  const ranksA = getRanks(paired, 'a');
+  const ranksB = getRanks(paired, 'b');
+
+  const pRes = calculatePearsonCorrelation(ranksA, ranksB);
+  if (pRes.r === null) {
+    return { rho: null, observationCount: paired.length, reason: pRes.reason };
+  }
+
+  return {
+    rho: pRes.r,
+    formattedRho: pRes.r.toFixed(3),
+    strength: pRes.strength,
+    observationCount: paired.length
+  };
+}
+
+/**
+ * Contingency Table, Row/Column Percentages & Cramér's V Association
+ */
+export function calculateContingencyTable(valuesA, valuesB) {
+  const rowCountsMap = new Map();
+  const colCatSet = new Set();
+  let totalObservations = 0;
+
+  for (let i = 0; i < Math.min(valuesA.length, valuesB.length); i++) {
+    const rawA = valuesA[i];
+    const rawB = valuesB[i];
+    if (isMissing(rawA) || isMissing(rawB)) continue;
+    const catA = String(rawA).trim();
+    const catB = String(rawB).trim();
+    totalObservations++;
+    colCatSet.add(catB);
+
+    if (!rowCountsMap.has(catA)) {
+      rowCountsMap.set(catA, new Map());
+    }
+    const rMap = rowCountsMap.get(catA);
+    rMap.set(catB, (rMap.get(catB) || 0) + 1);
+  }
+
+  const rowCategories = Array.from(rowCountsMap.keys());
+  const colCategories = Array.from(colCatSet);
+
+  if (rowCategories.length === 0 || colCategories.length === 0 || totalObservations === 0) {
+    return {
+      rowCategories: [],
+      colCategories: [],
+      matrix: [],
+      rowTotals: {},
+      colTotals: {},
+      total: 0,
+      cramersV: 0,
+      chiSquare: 0,
+      strength: 'None',
+      limitation: 'No valid paired observations'
+    };
+  }
+
+  const rowTotals = {};
+  const colTotals = {};
+  colCategories.forEach(c => colTotals[c] = 0);
+
+  const matrix = [];
+  rowCategories.forEach(r => {
+    rowTotals[r] = 0;
+    const rMap = rowCountsMap.get(r);
+    const counts = {};
+    colCategories.forEach(c => {
+      const cnt = rMap.get(c) || 0;
+      counts[c] = cnt;
+      rowTotals[r] += cnt;
+      colTotals[c] += cnt;
+    });
+    matrix.push({ rowCat: r, counts });
+  });
+
+  let chiSquare = 0;
+  let sparseCells = 0;
+  const totalCells = rowCategories.length * colCategories.length;
+
+  matrix.forEach(item => {
+    item.rowPcts = {};
+    item.colPcts = {};
+    const rTot = rowTotals[item.rowCat] || 0;
+    colCategories.forEach(c => {
+      const cnt = item.counts[c] || 0;
+      const cTot = colTotals[c] || 0;
+      item.rowPcts[c] = rTot > 0 ? (cnt / rTot) * 100 : 0;
+      item.colPcts[c] = cTot > 0 ? (cnt / cTot) * 100 : 0;
+
+      const expected = (rTot * cTot) / (totalObservations || 1);
+      if (expected < 5) sparseCells++;
+      if (expected > 0) {
+        chiSquare += Math.pow(cnt - expected, 2) / expected;
+      }
+    });
+  });
+
+  const minDim = Math.min(rowCategories.length - 1, colCategories.length - 1);
+  let cramersV = 0;
+  if (minDim > 0 && totalObservations > 0) {
+    cramersV = Math.sqrt(chiSquare / (totalObservations * minDim));
+    if (isNaN(cramersV)) cramersV = 0;
+    cramersV = Math.min(1, Math.max(0, cramersV));
+  }
+
+  let strength = 'Weak';
+  if (cramersV >= 0.35) strength = 'Strong';
+  else if (cramersV >= 0.15) strength = 'Moderate';
+
+  let limitation = null;
+  if (totalObservations < 10) {
+    limitation = `Small sample size (N=${totalObservations}); statistical significance is limited.`;
+  } else if (totalCells > 0 && (sparseCells / totalCells) > 0.2) {
+    limitation = `Sparse cell distribution (${Math.round((sparseCells / totalCells) * 100)}% cells have expected frequency < 5).`;
+  }
+
+  const matrix2D = rowCategories.map(r => {
+    const item = matrix.find(m => m.rowCat === r);
+    return colCategories.map(c => (item && item.counts) ? (item.counts[c] || 0) : 0);
+  });
+
+  const rowPercentages = rowCategories.map(r => {
+    const item = matrix.find(m => m.rowCat === r);
+    return colCategories.map(c => (item && item.rowPcts) ? (item.rowPcts[c] || 0) : 0);
+  });
+
+  const colPercentages = rowCategories.map(r => {
+    const item = matrix.find(m => m.rowCat === r);
+    return colCategories.map(c => (item && item.colPcts) ? (item.colPcts[c] || 0) : 0);
+  });
+
+  const rowTotalsArr = rowCategories.map(r => rowTotals[r] || 0);
+  const colTotalsArr = colCategories.map(c => colTotals[c] || 0);
+  const df = Math.max(1, (rowCategories.length - 1) * (colCategories.length - 1));
+
+  return {
+    rowCategories,
+    colCategories,
+    matrix: matrix2D,
+    matrixRows: matrix,
+    rowTotals: rowTotalsArr,
+    colTotals: colTotalsArr,
+    rowTotalsMap: rowTotals,
+    colTotalsMap: colTotals,
+    rowPercentages,
+    colPercentages,
+    total: totalObservations,
+    grandTotal: totalObservations,
+    df,
+    chiSquare: Number(chiSquare.toFixed(2)),
+    cramersV: Number(cramersV.toFixed(3)),
+    strength,
+    limitation,
+    lowExpectedWarning: !!limitation
+  };
+}
+
+/**
+ * Numerical Analysis Grouped by Categorical Dimension
+ */
+export function calculateNumericalByCategorical(rows, headers, catCol, numCol) {
+  const cIdx = headers.indexOf(catCol);
+  const nIdx = headers.indexOf(numCol);
+  if (cIdx === -1 || nIdx === -1) return [];
+
+  const groups = new Map();
+  rows.forEach(r => {
+    if (!r) return;
+    const catRaw = r[cIdx];
+    const numRaw = r[nIdx];
+    if (isMissing(catRaw) || isMissing(numRaw)) return;
+    const cat = String(catRaw).trim();
+    const num = parseNumericValue(numRaw);
+    if (num === null) return;
+
+    if (!groups.has(cat)) {
+      groups.set(cat, []);
+    }
+    groups.get(cat).push(num);
+  });
+
+  const result = [];
+  groups.forEach((vals, category) => {
+    vals.sort((a, b) => a - b);
+    const count = vals.length;
+    const sum = vals.reduce((acc, v) => acc + v, 0);
+    const mean = sum / count;
+    const mid = Math.floor(count / 2);
+    const median = count % 2 !== 0 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+    const min = vals[0];
+    const max = vals[count - 1];
+
+    let variance = 0;
+    if (count > 1) {
+      const sqDiffs = vals.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0);
+      variance = sqDiffs / (count - 1);
+    }
+    const stdDev = Math.sqrt(variance);
+
+    result.push({
+      category,
+      count,
+      sum,
+      mean: Number(mean.toFixed(2)),
+      median: Number(median.toFixed(2)),
+      min,
+      max,
+      stdDev: Number(stdDev.toFixed(2))
+    });
+  });
+
+  result.sort((a, b) => b.mean - a.mean);
+  return result;
+}
+
+/**
+ * Comprehensive Relationship Discovery Engine
+ */
+export function discoverAllRelationships(headers, rows, profilingResults) {
+  const { categoricalColumns, numericalColumns, dateColumns } = profilingResults;
+
+  // 1. Categorical Associations (Cramér's V & Contingency)
+  const categoricalAssociations = [];
+  for (let i = 0; i < categoricalColumns.length; i++) {
+    for (let j = i + 1; j < categoricalColumns.length; j++) {
+      const colA = categoricalColumns[i];
+      const colB = categoricalColumns[j];
+      const idxA = headers.indexOf(colA);
+      const idxB = headers.indexOf(colB);
+
+      const valsA = rows.map(r => r ? r[idxA] : undefined);
+      const valsB = rows.map(r => r ? r[idxB] : undefined);
+
+      const ct = calculateContingencyTable(valsA, valsB);
+      if (ct.total > 0 && ct.rowCategories.length > 1 && ct.colCategories.length > 1) {
+        categoricalAssociations.push({
+          colA,
+          colB,
+          cramersV: ct.cramersV,
+          chiSquare: ct.chiSquare,
+          df: ct.df || Math.max(1, (ct.rowCategories.length - 1) * (ct.colCategories.length - 1)),
+          strength: ct.strength,
+          observations: ct.total,
+          sampleSize: ct.total,
+          table: ct
+        });
+      }
+    }
+  }
+  categoricalAssociations.sort((a, b) => b.cramersV - a.cramersV);
+
+  // 2. Numerical Correlations (Pearson r & Spearman rho)
+  const numericalCorrelations = [];
+  for (let i = 0; i < numericalColumns.length; i++) {
+    for (let j = i + 1; j < numericalColumns.length; j++) {
+      const colA = numericalColumns[i];
+      const colB = numericalColumns[j];
+      const idxA = headers.indexOf(colA);
+      const idxB = headers.indexOf(colB);
+
+      const valsA = rows.map(r => r ? r[idxA] : undefined);
+      const valsB = rows.map(r => r ? r[idxB] : undefined);
+
+      const pRes = calculatePearsonCorrelation(valsA, valsB);
+      const sRes = calculateSpearmanCorrelation(valsA, valsB);
+
+      if (pRes && pRes.r !== null && !isNaN(pRes.r)) {
+        const pearsonVal = Number(pRes.r);
+        const spearmanVal = (sRes && typeof sRes.rho === 'number' && !isNaN(sRes.rho)) ? Number(sRes.rho) : pearsonVal;
+        numericalCorrelations.push({
+          colA,
+          colB,
+          r: pearsonVal,
+          pearson: pearsonVal,
+          formattedR: pRes.formattedR || pearsonVal.toFixed(3),
+          rho: spearmanVal,
+          spearman: spearmanVal,
+          formattedRho: (sRes && sRes.formattedRho) || spearmanVal.toFixed(3),
+          strength: pRes.strength || 'Moderate',
+          observations: pRes.observationCount || 0,
+          count: pRes.observationCount || 0,
+          sampleSize: pRes.observationCount || 0
+        });
+      }
+    }
+  }
+  numericalCorrelations.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+
+  // 3. Temporal vs Categorical Relationships
+  const temporalRelationships = [];
+  const timeCols = dateColumns.length > 0 ? dateColumns : headers.filter(h => /(YEAR|DATE|PERIOD|QUARTER|MONTH)/i.test(h));
+  timeCols.forEach(tCol => {
+    categoricalColumns.forEach(cCol => {
+      const ct = calculateContingencyTable(
+        rows.map(r => r ? r[headers.indexOf(tCol)] : undefined),
+        rows.map(r => r ? r[headers.indexOf(cCol)] : undefined)
+      );
+      if (ct.total > 0) {
+        temporalRelationships.push({
+          timeCol: tCol,
+          catCol: cCol,
+          observations: ct.total,
+          table: ct
+        });
+      }
+    });
+  });
+
+  // 4. Numerical by Categorical Breakdowns
+  const numericalByCategorical = [];
+  if (numericalColumns.length > 0 && categoricalColumns.length > 0) {
+    categoricalColumns.slice(0, 4).forEach(cCol => {
+      numericalColumns.slice(0, 3).forEach(nCol => {
+        const stats = calculateNumericalByCategorical(rows, headers, cCol, nCol);
+        if (stats.length > 0) {
+          numericalByCategorical.push({
+            catCol: cCol,
+            numCol: nCol,
+            stats
+          });
+        }
+      });
+    });
+  }
+
+  return {
+    categoricalAssociations,
+    numericalCorrelations,
+    temporalRelationships,
+    numericalByCategorical
+  };
+}
+
 /**
  * Main Profiling Orchestrator
  */
@@ -778,35 +1160,14 @@ export function profileDataset(headers, rows) {
   // Step 2: Quality & Hygiene Analysis
   const quality = calculateDataQuality(headers, rows, columnProfiles);
 
-  // Step 3: Numerical Correlation Analysis (Pearson)
-  const correlations = [];
-  // Calculate only for pairs of non-identifier numerical columns
-  for (let i = 0; i < numericalColumns.length; i++) {
-    for (let j = i + 1; j < numericalColumns.length; j++) {
-      const colA = numericalColumns[i];
-      const colB = numericalColumns[j];
-      const idxA = headers.indexOf(colA);
-      const idxB = headers.indexOf(colB);
+  // Step 3: Run Full Relationship Discovery Suite
+  const relationships = discoverAllRelationships(headers, rows, {
+    categoricalColumns,
+    numericalColumns,
+    dateColumns
+  });
 
-      const valsA = rows.map(r => r ? r[idxA] : undefined);
-      const valsB = rows.map(r => r ? r[idxB] : undefined);
-
-      const result = calculatePearsonCorrelation(valsA, valsB);
-      if (result.r !== null) {
-        correlations.push({
-          colA,
-          colB,
-          r: result.r,
-          formattedR: result.formattedR,
-          strength: result.strength,
-          observations: result.observationCount
-        });
-      }
-    }
-  }
-
-  // Sort correlations by absolute magnitude descending
-  correlations.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+  const correlations = relationships.numericalCorrelations;
 
   return {
     headers,
@@ -827,6 +1188,8 @@ export function profileDataset(headers, rows) {
     identifierColumns,
     textColumns,
     quality,
-    correlations
+    correlations,
+    relationships
   };
 }
+

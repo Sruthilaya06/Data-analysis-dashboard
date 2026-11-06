@@ -1,16 +1,17 @@
-Employee_ID,Employee_Name,Department,Location,Designation,Employment_Status,Joining_Date,Annual_Salary_INR,Performance_Score
-EMP-101,Aarav Sharma,Engineering,Bengaluru,Senior Software Engineer,Active,2022-04-15,1850000,4.6
-EMP-102,Diya Patel,Sales,Mumbai,Account Executive,Active,2022-07-01,1400000,4.2
-EMP-103,Rohan Mehta,Human Resources,Delhi,HR Specialist,Active,2023-01-10,980000,3.9
-EMP-104,Ananya Iyer,Finance,Bengaluru,Financial Analyst,Active,2023-03-20,1250000,4.4
-EMP-105,Vikram Malhotra,Engineering,Hyderabad,DevOps Lead,Active,2023-06-15,2200000,4.8
-EMP-106,Neha Verma,Marketing,Pune,Marketing Manager,Active,2023-09-01,1650000,4.1
-EMP-107,Kabir Joshi,Operations,Mumbai,Operations Lead,Active,2023-11-15,1350000,4.0
-EMP-108,Pooja Nair,Engineering,Bengaluru,Frontend Engineer,On Leave,2024-02-01,1500000,4.3
-EMP-109,Aditya Rao,Sales,Hyderabad,Regional Sales Lead,Active,2024-04-10,2100000,4.7
-EMP-110,Sneha Kulkarni,Finance,Pune,Senior Accountant,Active,2024-06-25,1450000,4.1
-EMP-111,Arjun Kapoor,Engineering,Bengaluru,Principal Architect,Active,2024-09-01,2800000,4.9
-EMP-112,Priyanka Sen,Marketing,Delhi,Content Strategist,Probation,2025-01-15,1050000,3.8
-EMP-113,Rahul Saxena,Operations,Hyderabad,Logistics Coordinator,Probation,2025-03-01,920000,3.9
-EMP-114,Kavita Reddy,Human Resources,Bengaluru,Talent Acquisition Partner,Active,2025-05-10,1180000,4.2
-EMP-115,Siddharth Jain,Engineering,Pune,Backend Engineer,Active,2025-08-01,1600000,4.5
+Employee_ID,Employee_Name,Department,Location,Designation,Employment_Status,Joining_Date,Joining_Year,Annual_Salary_INR,Performance_Score
+EMP-101,Aarav Sharma,Engineering,Bengaluru,Senior Software Engineer,Active,2022-04-15,2022,1850000,4.6
+EMP-102,Diya Patel,Sales,Mumbai,Account Executive,Active,2022-07-01,2022,1400000,4.2
+EMP-103,Rohan Mehta,Human Resources,Delhi,HR Specialist,Active,2023-01-10,2023,980000,3.9
+EMP-104,Ananya Iyer,Finance,Bengaluru,Financial Analyst,Active,2023-03-20,2023,1250000,4.4
+EMP-105,Vikram Malhotra,Engineering,Hyderabad,DevOps Lead,Active,2023-06-15,2023,2200000,4.8
+EMP-106,Neha Verma,Marketing,Pune,Marketing Manager,Active,2023-09-01,2023,1650000,4.1
+EMP-107,Kabir Joshi,Operations,Mumbai,Operations Lead,Active,2023-11-15,2023,1350000,4.0
+EMP-108,Pooja Nair,Engineering,Bengaluru,Frontend Engineer,On Leave,2024-02-01,2024,1500000,4.3
+EMP-109,Aditya Rao,Sales,Hyderabad,Regional Sales Lead,Active,2024-04-10,2024,2100000,4.7
+EMP-110,Sneha Kulkarni,Finance,Pune,Senior Accountant,Active,2024-06-25,2024,1450000,4.1
+EMP-111,Arjun Kapoor,Engineering,Bengaluru,Principal Architect,Active,2024-09-01,2024,2800000,4.9
+EMP-112,Priyanka Sen,Marketing,Delhi,Content Strategist,Probation,2025-01-15,2025,1050000,3.8
+EMP-113,Rahul Saxena,Operations,Hyderabad,Logistics Coordinator,Probation,2025-03-01,2025,920000,3.9
+EMP-114,Kavita Reddy,Human Resources,Bengaluru,Talent Acquisition Partner,Active,2025-05-10,2025,1180000,4.2
+EMP-115,Siddharth Jain,Engineering,Pune,Backend Engineer,Active,2025-08-01,2025,1600000,4.5
+

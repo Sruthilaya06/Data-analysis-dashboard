@@ -3,21 +3,72 @@ import * as XLSX from 'xlsx';
 import { 
   profileDataset, 
   formatMetricNumber, 
-  formatPercent 
+  formatPercent,
+  isMissing,
+  calculateContingencyTable,
+  calculateSpearmanCorrelation,
+  calculateNumericalByCategorical
 } from './profiling.js';
+import {
+  generateRecommendedCharts,
+  renderDashboardChart,
+  aggregateDataset,
+  renderSvgBarChart,
+  renderSvgHorizontalBarChart,
+  renderSvgDonutChart,
+  renderSvgLineChart,
+  renderSvgHistogram,
+  renderSvgBoxPlot,
+  renderSvgScatterPlot,
+  renderSvgCorrelationHeatmap,
+  renderSvgGroupedOrStackedBarChart,
+  renderSvg100PercentStackedBarChart,
+  renderSvgSmallMultiples,
+  renderSvgCrossTabHeatmap,
+  PALETTE,
+  escapeSvg
+} from './charts.js';
 
 /**
- * Data Analysis Dashboard - Phase 2.1 Application Logic
- * Automated Data Profiling & Tabular Analytics Engine
+ * Data Analysis Dashboard - Phase 2.2 Application Logic
+ * Automated Data Profiling & Dynamic Visualization Engine
  * Architecture: Vanilla JavaScript (ES6+), HTML5, CSS3, Vite
  */
 
 // Application State
 const state = {
-  activeTab: 'overview', // 'overview' | 'preview' | 'analysis' | 'insights'
+  activeTab: 'overview', // 'overview' | 'preview' | 'visualizations' | 'analysis' | 'insights'
   profilingSubTab: 'all', // 'all' | 'table' | 'numerical' | 'categorical' | 'dates' | 'correlations' | 'quality'
+  visualizationsFilter: 'all', // 'all' | 'distribution' | 'comparisons' | 'numerical' | 'temporal' | 'relationships' | 'custom'
+  relationshipTab: 'overview', // 'overview' | 'categorical' | 'numerical' | 'temporal' | 'multidimensional'
+  contingencyMode: 'counts', // 'counts' | 'rowPct' | 'colPct'
+  selectedCatColA: '',
+  selectedCatColB: '',
+  selectedNumColA: '',
+  selectedNumColB: '',
+  selectedTimeCol: '',
+  selectedTimeCatCol: '',
+  selected3WayX: '',
+  selected3WayS1: '',
+  selected3WayS2: '',
   file: null, // { name, size, formattedSize, extension, rawFile }
   dataset: null, // { headers: [], rows: [], totalRecords: 0, totalColumns: 0, columnTypes: {}, profile: {} }
+  charts: null, // Generated recommended analytical charts
+  customCharts: [], // User-created custom charts
+  chartToggles: {}, // Map: chartId -> activeType
+  isCustomChartModalOpen: false,
+  customChartForm: {
+    type: 'bar',
+    xCol: '',
+    yCol: '__count__',
+    groupCols: [],
+    presentation: 'composite', // 'composite' | 'facets'
+    topN: 15,
+    fieldSearch: '',
+    includeIdentifiers: false,
+    method: 'count',
+    title: ''
+  },
   previewSearch: '',
   profileSearch: '',
   previewPage: 1,
@@ -339,6 +390,11 @@ async function processDatasetFile(rawFile) {
       profile
     };
 
+    // Generate dynamic recommended charts
+    state.charts = generateRecommendedCharts(state.dataset, profile);
+    state.customCharts = [];
+    state.chartToggles = {};
+
     state.previewPage = 1;
     state.previewSearch = '';
     state.profileSearch = '';
@@ -362,78 +418,78 @@ const sampleDatasets = {
     name: 'sales_q1_test_dataset.csv',
     size: 2680,
     formattedSize: '2.7 KB',
-    headers: ['Order_ID', 'Order_Date', 'Customer_Name', 'Region', 'Sales_Rep', 'Product', 'Category', 'Units_Sold', 'Unit_Price_INR', 'Revenue_INR', 'Profit_INR'],
+    headers: ['Order_ID', 'Order_Date', 'Order_Month', 'Customer_Name', 'Region', 'Sales_Rep', 'Product', 'Category', 'Units_Sold', 'Unit_Price_INR', 'Revenue_INR', 'Profit_INR'],
     rows: [
-      ['ORD-1001', '2026-01-08', 'Apex Systems', 'North America', 'Sarah Jenkins', 'Cloud Analytics Enterprise', 'Software', 4, 45000, 180000, 54000],
-      ['ORD-1002', '2026-01-12', 'Global Tech Solutions', 'Europe', 'Elena Rostova', 'Precision Edge Server', 'Hardware', 2, 92000, 184000, 36800],
-      ['ORD-1003', '2026-01-15', 'Zenith Enterprises', 'Asia Pacific', 'David Chen', 'Systems Integration', 'Services', 1, 145000, 145000, 43500],
-      ['ORD-1004', '2026-01-19', 'Vanguard Logistics', 'North America', 'Sarah Jenkins', 'API Gateway Suite', 'Software', 6, 21000, 126000, 37800],
-      ['ORD-1005', '2026-01-23', 'Horizon Retail', 'Latin America', 'Alex Rivera', 'Security Compliance Suite', 'Software', 1, 88000, 88000, 26400],
-      ['ORD-1006', '2026-01-28', 'Nexus Health', 'Europe', 'Elena Rostova', 'Cloud Analytics Pro', 'Software', 5, 28000, 140000, 42000],
-      ['ORD-1007', '2026-02-02', 'Starlight Media', 'Asia Pacific', 'David Chen', 'Network Switch Series X', 'Hardware', 8, 26000, 208000, 41600],
-      ['ORD-1008', '2026-02-07', 'Titan Industrial', 'North America', 'Marcus Vance', 'DevOps Managed Service', 'Services', 3, 54000, 162000, 48600],
-      ['ORD-1009', '2026-02-12', 'Pioneer Software', 'Europe', 'Elena Rostova', 'Precision Edge Server', 'Hardware', 3, 92000, 276000, 55200],
-      ['ORD-1010', '2026-02-17', 'Silverline Financial', 'North America', 'Sarah Jenkins', 'Cloud Analytics Enterprise', 'Software', 7, 45000, 315000, 94500],
-      ['ORD-1011', '2026-02-22', 'Echo Networks', 'Asia Pacific', 'David Chen', 'API Gateway Suite', 'Software', 4, 21000, 84000, 25200],
-      ['ORD-1012', '2026-02-27', 'Beacon Energy', 'Latin America', 'Alex Rivera', 'Systems Integration', 'Services', 2, 145000, 290000, 87000],
-      ['ORD-1013', '2026-03-05', 'Solaria Technologies', 'North America', 'Marcus Vance', 'Security Compliance Suite', 'Software', 3, 88000, 264000, 79200],
-      ['ORD-1014', '2026-03-12', 'Quantum Dynamics', 'Europe', 'Elena Rostova', 'DevOps Managed Service', 'Services', 2, 54000, 108000, 32400],
-      ['ORD-1015', '2026-03-20', 'Acme Corporation', 'Asia Pacific', 'David Chen', 'Cloud Analytics Pro', 'Software', 6, 28000, 168000, 50400]
+      ['ORD-1001', '2026-01-08', '2026-01', 'Apex Systems', 'North America', 'Sarah Jenkins', 'Cloud Analytics Enterprise', 'Software', 4, 45000, 180000, 54000],
+      ['ORD-1002', '2026-01-12', '2026-01', 'Global Tech Solutions', 'Europe', 'Elena Rostova', 'Precision Edge Server', 'Hardware', 2, 92000, 184000, 36800],
+      ['ORD-1003', '2026-01-15', '2026-01', 'Zenith Enterprises', 'Asia Pacific', 'David Chen', 'Systems Integration', 'Services', 1, 145000, 145000, 43500],
+      ['ORD-1004', '2026-01-19', '2026-01', 'Vanguard Logistics', 'North America', 'Sarah Jenkins', 'API Gateway Suite', 'Software', 6, 21000, 126000, 37800],
+      ['ORD-1005', '2026-01-23', '2026-01', 'Horizon Retail', 'Latin America', 'Alex Rivera', 'Security Compliance Suite', 'Software', 1, 88000, 88000, 26400],
+      ['ORD-1006', '2026-01-28', '2026-01', 'Nexus Health', 'Europe', 'Elena Rostova', 'Cloud Analytics Pro', 'Software', 5, 28000, 140000, 42000],
+      ['ORD-1007', '2026-02-02', '2026-02', 'Starlight Media', 'Asia Pacific', 'David Chen', 'Network Switch Series X', 'Hardware', 8, 26000, 208000, 41600],
+      ['ORD-1008', '2026-02-07', '2026-02', 'Titan Industrial', 'North America', 'Marcus Vance', 'DevOps Managed Service', 'Services', 3, 54000, 162000, 48600],
+      ['ORD-1009', '2026-02-12', '2026-02', 'Pioneer Software', 'Europe', 'Elena Rostova', 'Precision Edge Server', 'Hardware', 3, 92000, 276000, 55200],
+      ['ORD-1010', '2026-02-17', '2026-02', 'Silverline Financial', 'North America', 'Sarah Jenkins', 'Cloud Analytics Enterprise', 'Software', 7, 45000, 315000, 94500],
+      ['ORD-1011', '2026-02-22', '2026-02', 'Echo Networks', 'Asia Pacific', 'David Chen', 'API Gateway Suite', 'Software', 4, 21000, 84000, 25200],
+      ['ORD-1012', '2026-02-27', '2026-02', 'Beacon Energy', 'Latin America', 'Alex Rivera', 'Systems Integration', 'Services', 2, 145000, 290000, 87000],
+      ['ORD-1013', '2026-03-05', '2026-03', 'Solaria Technologies', 'North America', 'Marcus Vance', 'Security Compliance Suite', 'Software', 3, 88000, 264000, 79200],
+      ['ORD-1014', '2026-03-12', '2026-03', 'Quantum Dynamics', 'Europe', 'Elena Rostova', 'DevOps Managed Service', 'Services', 2, 54000, 108000, 32400],
+      ['ORD-1015', '2026-03-20', '2026-03', 'Acme Corporation', 'Asia Pacific', 'David Chen', 'Cloud Analytics Pro', 'Software', 6, 28000, 168000, 50400]
     ]
   },
   audit: {
     name: 'audit_observations_test_dataset.csv',
     size: 2740,
     formattedSize: '2.7 KB',
-    headers: ['Observation_ID', 'Observation_Date', 'Department', 'Location', 'Risk_Level', 'Status', 'Observation_Title', 'Observation_Details', 'Financial_Impact_INR'],
+    headers: ['Observation_ID', 'Observation_Date', 'Audit_Year', 'Quarter', 'Department', 'Location', 'Observation_Level', 'Audit_Type', 'Risk_Nature', 'Risk_Level', 'Status', 'Repeat_Flag', 'Observation_Title', 'Observation_Details', 'Financial_Impact_INR'],
     rows: [
-      ['OBS-001', '2026-01-10', 'IT Audit', 'Bengaluru', 'High', 'Open', 'Unrestricted DB Admin Access', 'Administrative credentials shared across engineering teams without audit trail logging', 850000],
-      ['OBS-002', '2026-01-14', 'Finance', 'Mumbai', 'Medium', 'In Progress', 'ERP Segregation of Duties Conflict', 'Accounts payable approval threshold lacks secondary sign-off above INR 500000', 320000],
-      ['OBS-003', '2026-01-18', 'Operations', 'Delhi', 'Low', 'Closed', 'Delayed Inventory Physical Verification', 'Quarterly warehouse asset count delayed by two weeks across central depot', 0],
-      ['OBS-004', '2026-01-22', 'Compliance', 'Hyderabad', 'Critical', 'Under Review', 'Statutory Tax Filing Delay', 'Withholding tax documentation reconciliation discrepancy pending regulatory review', 1500000],
-      ['OBS-005', '2026-01-27', 'Information Security', 'Bengaluru', 'High', 'Open', 'Unpatched Perimeter Firewall Firmware', 'Critical CVE patch pending deployment on primary DMZ ingress firewalls', 1200000],
-      ['OBS-006', '2026-02-02', 'Human Resources', 'Mumbai', 'Low', 'Closed', 'Incomplete Background Verification Records', 'Contractor personnel onboarding checklist missing third-party address verification', 0],
-      ['OBS-007', '2026-02-06', 'Supply Chain', 'Chennai', 'Medium', 'In Progress', 'Single Source Vendor Dependency', 'Sole-source supplier contract active for essential server hardware components', 650000],
-      ['OBS-008', '2026-02-11', 'IT Audit', 'Hyderabad', 'Critical', 'Open', 'Disaster Recovery Backup Failure', 'Secondary cold site snapshot replication failed integrity test during quarterly drill', 2400000],
-      ['OBS-009', '2026-02-15', 'Finance', 'Delhi', 'High', 'Under Review', 'Unreconciled Intercompany Balances', 'Variance identified between subsidiary ledger and parent holding accounts', 950000],
-      ['OBS-010', '2026-02-19', 'Operations', 'Mumbai', 'Medium', 'Closed', 'Overtime Hours Authorization Gap', 'Production plant shift overtime logs missing supervisor countersignature', 140000],
-      ['OBS-011', '2026-02-24', 'Information Security', 'Bengaluru', 'Critical', 'Open', 'Exposed API Key in Client Bundle', 'Production API gateway access token embedded in public staging web application', 3100000],
-      ['OBS-012', '2026-03-01', 'Compliance', 'Chennai', 'Medium', 'In Progress', 'Data Protection Policy Training Gap', 'Annual GDPR and DPDP compliance refresher training overdue for 35 percent staff', 250000],
-      ['OBS-013', '2026-03-07', 'Supply Chain', 'Delhi', 'Low', 'Closed', 'Purchase Order Retrospective Approval', 'Five purchase requisitions issued post-invoice receipt by regional branch', 90000],
-      ['OBS-014', '2026-03-14', 'Finance', 'Bengaluru', 'High', 'Open', 'Uncollected Customer Receivables Over 180 Days', 'Aged trade receivables exceeding 180 days lack documented provisioning', 1800000],
-      ['OBS-015', '2026-03-21', 'Operations', 'Hyderabad', 'Low', 'Under Review', 'Logistics Transit Temperature Excursion', 'Cold chain temperature monitors registered intermittent calibration drift', 180000]
+      ['OBS-001', '2026-01-10', '2026', 'Q1', 'IT Audit', 'Bengaluru', 'Process', 'IT Audit', 'Operational', 'High', 'Open', 'Yes', 'Unrestricted DB Admin Access', 'Administrative credentials shared across engineering teams without audit trail logging', 850000],
+      ['OBS-002', '2026-01-14', '2026', 'Q1', 'Finance', 'Mumbai', 'Entity', 'Financial Audit', 'Financial', 'Medium', 'In Progress', 'No', 'ERP Segregation of Duties Conflict', 'Accounts payable approval threshold lacks secondary sign-off above INR 500000', 320000],
+      ['OBS-003', '2026-01-18', '2026', 'Q1', 'Operations', 'Delhi', 'Branch', 'Operational Audit', 'Compliance', 'Low', 'Closed', 'No', 'Delayed Inventory Physical Verification', 'Quarterly warehouse asset count delayed by two weeks across central depot', 0],
+      ['OBS-004', '2026-01-22', '2026', 'Q1', 'Compliance', 'Hyderabad', 'Entity', 'Compliance Audit', 'Regulatory', 'Critical', 'Under Review', 'Yes', 'Statutory Tax Filing Delay', 'Withholding tax documentation reconciliation discrepancy pending regulatory review', 1500000],
+      ['OBS-005', '2026-01-27', '2026', 'Q1', 'Information Security', 'Bengaluru', 'Process', 'Cybersecurity Audit', 'Operational', 'High', 'Open', 'Yes', 'Unpatched Perimeter Firewall Firmware', 'Critical CVE patch pending deployment on primary DMZ ingress firewalls', 1200000],
+      ['OBS-006', '2026-02-02', '2026', 'Q1', 'Human Resources', 'Mumbai', 'Process', 'HR Audit', 'Compliance', 'Low', 'Closed', 'No', 'Incomplete Background Verification Records', 'Contractor personnel onboarding checklist missing third-party address verification', 0],
+      ['OBS-007', '2026-02-06', '2026', 'Q1', 'Supply Chain', 'Chennai', 'Branch', 'Supply Chain Audit', 'Operational', 'Medium', 'In Progress', 'No', 'Single Source Vendor Dependency', 'Sole-source supplier contract active for essential server hardware components', 650000],
+      ['OBS-008', '2026-02-11', '2026', 'Q1', 'IT Audit', 'Hyderabad', 'Entity', 'IT Audit', 'Operational', 'Critical', 'Open', 'Yes', 'Disaster Recovery Backup Failure', 'Secondary cold site snapshot replication failed integrity test during quarterly drill', 2400000],
+      ['OBS-009', '2026-02-15', '2026', 'Q1', 'Finance', 'Delhi', 'Entity', 'Financial Audit', 'Financial', 'High', 'Under Review', 'No', 'Unreconciled Intercompany Balances', 'Variance identified between subsidiary ledger and parent holding accounts', 950000],
+      ['OBS-010', '2026-02-19', '2026', 'Q1', 'Operations', 'Mumbai', 'Branch', 'Operational Audit', 'Compliance', 'Medium', 'Closed', 'No', 'Overtime Hours Authorization Gap', 'Production plant shift overtime logs missing supervisor countersignature', 140000],
+      ['OBS-011', '2026-02-24', '2026', 'Q1', 'Information Security', 'Bengaluru', 'Process', 'Cybersecurity Audit', 'Operational', 'Critical', 'Open', 'Yes', 'Exposed API Key in Client Bundle', 'Production API gateway access token embedded in public staging web application', 3100000],
+      ['OBS-012', '2026-03-01', '2026', 'Q1', 'Compliance', 'Chennai', 'Process', 'Compliance Audit', 'Regulatory', 'Medium', 'In Progress', 'No', 'Data Protection Policy Training Gap', 'Annual GDPR and DPDP compliance refresher training overdue for 35 percent staff', 250000],
+      ['OBS-013', '2026-03-07', '2026', 'Q1', 'Supply Chain', 'Delhi', 'Branch', 'Supply Chain Audit', 'Compliance', 'Low', 'Closed', 'No', 'Purchase Order Retrospective Approval', 'Five purchase requisitions issued post-invoice receipt by regional branch', 90000],
+      ['OBS-014', '2026-03-14', '2026', 'Q1', 'Finance', 'Bengaluru', 'Entity', 'Financial Audit', 'Financial', 'High', 'Open', 'Yes', 'Uncollected Customer Receivables Over 180 Days', 'Aged trade receivables exceeding 180 days lack documented provisioning', 1800000],
+      ['OBS-015', '2026-03-21', '2026', 'Q1', 'Operations', 'Hyderabad', 'Process', 'Operational Audit', 'Operational', 'Low', 'Under Review', 'No', 'Logistics Transit Temperature Excursion', 'Cold chain temperature monitors registered intermittent calibration drift', 180000]
     ]
   },
   employee: {
     name: 'employee_test_dataset.csv',
     size: 2450,
     formattedSize: '2.5 KB',
-    headers: ['Employee_ID', 'Employee_Name', 'Department', 'Location', 'Designation', 'Employment_Status', 'Joining_Date', 'Annual_Salary_INR', 'Performance_Score'],
+    headers: ['Employee_ID', 'Employee_Name', 'Department', 'Location', 'Designation', 'Employment_Status', 'Joining_Date', 'Joining_Year', 'Annual_Salary_INR', 'Performance_Score'],
     rows: [
-      ['EMP-101', 'Aarav Sharma', 'Engineering', 'Bengaluru', 'Senior Software Engineer', 'Active', '2022-04-15', 1850000, 4.6],
-      ['EMP-102', 'Diya Patel', 'Sales', 'Mumbai', 'Account Executive', 'Active', '2022-07-01', 1400000, 4.2],
-      ['EMP-103', 'Rohan Mehta', 'Human Resources', 'Delhi', 'HR Specialist', 'Active', '2023-01-10', 980000, 3.9],
-      ['EMP-104', 'Ananya Iyer', 'Finance', 'Bengaluru', 'Financial Analyst', 'Active', '2023-03-20', 1250000, 4.4],
-      ['EMP-105', 'Vikram Malhotra', 'Engineering', 'Hyderabad', 'DevOps Lead', 'Active', '2023-06-15', 2200000, 4.8],
-      ['EMP-106', 'Neha Verma', 'Marketing', 'Pune', 'Marketing Manager', 'Active', '2023-09-01', 1650000, 4.1],
-      ['EMP-107', 'Kabir Joshi', 'Operations', 'Mumbai', 'Operations Lead', 'Active', '2023-11-15', 1350000, 4.0],
-      ['EMP-108', 'Pooja Nair', 'Engineering', 'Bengaluru', 'Frontend Engineer', 'On Leave', '2024-02-01', 1500000, 4.3],
-      ['EMP-109', 'Aditya Rao', 'Sales', 'Hyderabad', 'Regional Sales Lead', 'Active', '2024-04-10', 2100000, 4.7],
-      ['EMP-110', 'Sneha Kulkarni', 'Finance', 'Pune', 'Senior Accountant', 'Active', '2024-06-25', 1450000, 4.1],
-      ['EMP-111', 'Arjun Kapoor', 'Engineering', 'Bengaluru', 'Principal Architect', 'Active', '2024-09-01', 2800000, 4.9],
-      ['EMP-112', 'Priyanka Sen', 'Marketing', 'Delhi', 'Content Strategist', 'Probation', '2025-01-15', 1050000, 3.8],
-      ['EMP-113', 'Rahul Saxena', 'Operations', 'Hyderabad', 'Logistics Coordinator', 'Probation', '2025-03-01', 920000, 3.9],
-      ['EMP-114', 'Kavita Reddy', 'Human Resources', 'Bengaluru', 'Talent Acquisition Partner', 'Active', '2025-05-10', 1180000, 4.2],
-      ['EMP-115', 'Siddharth Jain', 'Engineering', 'Pune', 'Backend Engineer', 'Active', '2025-08-01', 1600000, 4.5]
+      ['EMP-101', 'Aarav Sharma', 'Engineering', 'Bengaluru', 'Senior Software Engineer', 'Active', '2022-04-15', '2022', 1850000, 4.6],
+      ['EMP-102', 'Diya Patel', 'Sales', 'Mumbai', 'Account Executive', 'Active', '2022-07-01', '2022', 1400000, 4.2],
+      ['EMP-103', 'Rohan Mehta', 'Human Resources', 'Delhi', 'HR Specialist', 'Active', '2023-01-10', '2023', 980000, 3.9],
+      ['EMP-104', 'Ananya Iyer', 'Finance', 'Bengaluru', 'Financial Analyst', 'Active', '2023-03-20', '2023', 1250000, 4.4],
+      ['EMP-105', 'Vikram Malhotra', 'Engineering', 'Hyderabad', 'DevOps Lead', 'Active', '2023-06-15', '2023', 2200000, 4.8],
+      ['EMP-106', 'Neha Verma', 'Marketing', 'Pune', 'Marketing Manager', 'Active', '2023-09-01', '2023', 1650000, 4.1],
+      ['EMP-107', 'Kabir Joshi', 'Operations', 'Mumbai', 'Operations Lead', 'Active', '2023-11-15', '2023', 1350000, 4.0],
+      ['EMP-108', 'Pooja Nair', 'Engineering', 'Bengaluru', 'Frontend Engineer', 'On Leave', '2024-02-01', '2024', 1500000, 4.3],
+      ['EMP-109', 'Aditya Rao', 'Sales', 'Hyderabad', 'Regional Sales Lead', 'Active', '2024-04-10', '2024', 2100000, 4.7],
+      ['EMP-110', 'Sneha Kulkarni', 'Finance', 'Pune', 'Senior Accountant', 'Active', '2024-06-25', '2024', 1450000, 4.1],
+      ['EMP-111', 'Arjun Kapoor', 'Engineering', 'Bengaluru', 'Principal Architect', 'Active', '2024-09-01', '2024', 2800000, 4.9],
+      ['EMP-112', 'Priyanka Sen', 'Marketing', 'Delhi', 'Content Strategist', 'Probation', '2025-01-15', '2025', 1050000, 3.8],
+      ['EMP-113', 'Rahul Saxena', 'Operations', 'Hyderabad', 'Logistics Coordinator', 'Probation', '2025-03-01', '2025', 920000, 3.9],
+      ['EMP-114', 'Kavita Reddy', 'Human Resources', 'Bengaluru', 'Talent Acquisition Partner', 'Active', '2025-05-10', '2025', 1180000, 4.2],
+      ['EMP-115', 'Siddharth Jain', 'Engineering', 'Pune', 'Backend Engineer', 'Active', '2025-08-01', '2025', 1600000, 4.5]
     ]
   },
   financial: {
     name: 'financial_reporting_test_dataset.csv',
     size: 2180,
     formattedSize: '2.2 KB',
-    headers: ['Period', 'Department', 'Metric', 'Scenario', 'Amount_INR'],
+    headers: ['Period', 'Financial_Year', 'Quarter', 'Department', 'Metric', 'Scenario', 'Amount_INR'],
     rows: [
-      ['2025-Q1', 'Enterprise Sales', 'Gross Revenue', 'Actual', 6200000],
+      ['2025-Q1', 'FY2025', 'Q1', 'Enterprise Sales', 'Gross Revenue', 'Actual', 6200000],
       ['2025-Q1', 'Core Infrastructure', 'Cost of Goods Sold', 'Actual', 3100000],
       ['2025-Q1', 'Global Operations', 'Operating Expense', 'Actual', 1450000],
       ['2025-Q2', 'Enterprise Sales', 'Gross Revenue', 'Actual', 6800000],
@@ -478,6 +534,11 @@ function loadSampleDataset(key = 'sales') {
     profile
   };
 
+  // Generate dynamic recommended charts
+  state.charts = generateRecommendedCharts(state.dataset, profile);
+  state.customCharts = [];
+  state.chartToggles = {};
+
   state.previewPage = 1;
   state.previewSearch = '';
   state.profileSearch = '';
@@ -491,10 +552,14 @@ function loadSampleDataset(key = 'sales') {
 function removeDataset() {
   state.file = null;
   state.dataset = null;
+  state.charts = null;
+  state.customCharts = [];
+  state.chartToggles = {};
   state.previewSearch = '';
   state.profileSearch = '';
   state.previewPage = 1;
   state.profilingSubTab = 'all';
+  state.visualizationsFilter = 'all';
   state.errorMessage = null;
   renderApp();
 }
@@ -519,7 +584,7 @@ function renderHeader() {
         <div class="header-meta">
           <span class="phase-badge">
             <span class="status-dot"></span>
-            Phase 2.1: Automated Data Profiling
+            Phase 2.2: Dynamic Data Visualization Engine
           </span>
         </div>
       </div>
@@ -531,6 +596,17 @@ function renderHeader() {
  * Render Navigation Tabs
  */
 function renderNavigation() {
+  // Count total generated charts
+  let totalCharts = 0;
+  if (state.charts) {
+    totalCharts = (state.charts.distribution?.length || 0) +
+                  (state.charts.comparisons?.length || 0) +
+                  (state.charts.numerical?.length || 0) +
+                  (state.charts.temporal?.length || 0) +
+                  (state.charts.relationships?.length || 0) +
+                  (state.customCharts?.length || 0);
+  }
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: icons.database },
     { 
@@ -538,6 +614,12 @@ function renderNavigation() {
       label: 'Data Preview', 
       icon: icons.table,
       badge: state.dataset ? `${state.dataset.totalRecords.toLocaleString()} rows` : null 
+    },
+    {
+      id: 'visualizations',
+      label: 'Visualizations',
+      icon: icons.chart,
+      badge: totalCharts > 0 ? `${totalCharts} charts` : null
     },
     { 
       id: 'analysis', 
@@ -943,55 +1025,150 @@ function renderOverviewKPISection() {
 }
 
 /**
- * Render Reserved Charts Section (Phase 2 Blueprint)
+ * Render Executive Overview Charts Section (Phase 2.2 Dynamic Charts)
  */
-function renderReservedChartsSection() {
+function renderOverviewChartsSection() {
+  if (!state.dataset || !state.charts) {
+    return `
+      <section class="reserved-section">
+        <div class="section-header">
+          <div class="section-title-wrap">
+            <span class="reserved-badge-header">Visual Analytics</span>
+            <h2 class="section-title">Visual Exploration & Distribution Analysis</h2>
+            <p class="section-subtitle">Real-time analytical visualizer charts generated from active records</p>
+          </div>
+        </div>
+
+        <div class="empty-state-panel" style="min-height: 200px;">
+          <div class="empty-state-icon">${icons.barChart}</div>
+          <h3 class="empty-state-title">Awaiting Dataset Upload</h3>
+          <p class="empty-state-desc">
+            Upload an Excel or CSV file, or select a sample dataset above to dynamically generate interactive distribution charts, category rankings, and visual breakdowns.
+          </p>
+        </div>
+      </section>
+    `;
+  }
+
+  // Pick top two summary charts
+  const distCharts = state.charts.distribution || [];
+  const compCharts = state.charts.comparisons || [];
+  const tempCharts = state.charts.temporal || [];
+  const numCharts = state.charts.numerical || [];
+
+  const chart1 = distCharts[0] || numCharts[0];
+  const chart2 = compCharts[0] || tempCharts[0] || distCharts[1] || numCharts[1];
+
+  let totalChartsCount = 0;
+  if (state.charts) {
+    totalChartsCount = (state.charts.distribution?.length || 0) +
+                       (state.charts.comparisons?.length || 0) +
+                       (state.charts.numerical?.length || 0) +
+                       (state.charts.temporal?.length || 0) +
+                       (state.charts.relationships?.length || 0) +
+                       (state.customCharts?.length || 0);
+  }
+
   return `
     <section class="reserved-section">
       <div class="section-header">
         <div class="section-title-wrap">
-          <span class="reserved-badge-header">Phase 2 Blueprint</span>
-          <h2 class="section-title">Visual Exploration & Distribution Analysis</h2>
-          <p class="section-subtitle">Dedicated analytical visualizer slots for multi-dimensional dataset insights</p>
+          <span class="reserved-badge-header" style="background-color: var(--accent-orange-light); color: var(--accent-orange-hover); border-color: var(--accent-orange-border);">
+            Live Visual Analytics
+          </span>
+          <h2 class="section-title">Executive Visual Exploration & Composition</h2>
+          <p class="section-subtitle">Real-time multi-dimensional charts generated dynamically from ${state.dataset.totalRecords.toLocaleString()} rows</p>
         </div>
+        <button type="button" class="btn btn-primary btn-sm" id="jump-to-visualizations-btn">
+          ${icons.chart}
+          <span>Explore All Visualizations (${totalChartsCount}) &rarr;</span>
+        </button>
       </div>
 
-      <div class="reserved-charts-grid">
-        <div class="reserved-chart-box">
-          <div class="chart-header">
-            <h3 class="chart-title">Primary Variable Distribution & Frequency</h3>
-            <span class="tab-badge pill-reserved">Interactive Charting</span>
-          </div>
-          <div class="chart-blueprint-body">
-            <div class="blueprint-info">
-              <div class="blueprint-icon">${icons.barChart}</div>
-              <h4 class="blueprint-title">Chart Container 01</h4>
-              <p class="blueprint-desc">
-                Interactive histograms, bar series, and distribution curves will render here in subsequent phases.
-              </p>
-            </div>
-          </div>
-        </div>
+      <div class="viz-charts-grid" style="padding: 0; background: transparent; margin-bottom: 20px;">
+        ${chart1 ? renderChartCard(chart1) : ''}
+        ${chart2 ? renderChartCard(chart2) : ''}
+      </div>
 
-        <div class="reserved-chart-box">
-          <div class="chart-header">
-            <h3 class="chart-title">Categorical Composition</h3>
-            <span class="tab-badge pill-reserved">Proportional View</span>
-          </div>
-          <div class="chart-blueprint-body">
-            <div class="blueprint-info">
-              <div class="blueprint-icon">${icons.pieChart}</div>
-              <h4 class="blueprint-title">Chart Container 02</h4>
-              <p class="blueprint-desc">
-                Segment splits, percentage breakdowns, and correlation rings will render here in subsequent phases.
-              </p>
-            </div>
-          </div>
+      <div style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="color: var(--accent-orange); display: flex;">${icons.sparkles}</span>
+          <span style="font-size: 13px; color: var(--text-secondary);">
+            <strong>5 Analytical Dimensions Ready:</strong> Category Distributions, Comparisons, Numerical Histograms & Box Plots, Time-Series Trends, and Correlation Heatmaps.
+          </span>
         </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="jump-to-visualizations-btn-2">
+          View Complete Visualizations Suite &rarr;
+        </button>
       </div>
     </section>
   `;
 }
+
+/**
+ * Universal Chart Card Component
+ */
+function renderChartCard(item) {
+  const currentType = state.chartToggles[item.id] || item.activeType || item.type;
+  const activeItem = { ...item, activeType: currentType };
+
+  const hasToggle = item.supportedTypes && item.supportedTypes.length > 1;
+  const toggleLabel = getToggleLabel(currentType, item.supportedTypes);
+
+  return `
+    <div class="chart-card" id="card-${item.id}">
+      <div class="chart-card-topbar">
+        <div class="chart-card-title-group">
+          <h4>${escapeHtml(item.title)}</h4>
+          <p>${escapeHtml(item.subtitle || '')}</p>
+        </div>
+        <div class="chart-card-actions">
+          ${hasToggle ? `
+            <button type="button" class="chart-toggle-btn" data-chart-id="${item.id}" title="Toggle between alternative chart representations">
+              ${icons.refresh}
+              <span>${toggleLabel}</span>
+            </button>
+          ` : ''}
+          <button type="button" class="chart-export-btn" data-export-chart="${item.id}" title="Download high-resolution vector SVG">
+            ${icons.upload}
+            <span>Export SVG</span>
+          </button>
+          ${item.isCustom ? `
+            <button type="button" class="btn btn-danger-outline btn-sm btn-remove-custom-chart" data-custom-id="${item.id}" title="Remove custom chart">
+              ${icons.trash}
+            </button>
+          ` : ''}
+        </div>
+      </div>
+      <div class="chart-card-body">
+        ${renderDashboardChart(activeItem)}
+      </div>
+    </div>
+  `;
+}
+
+function getToggleLabel(current, supported) {
+  if (!supported || supported.length <= 1) return 'Toggle View';
+  const currentIdx = supported.indexOf(current);
+  const nextIdx = (currentIdx + 1) % supported.length;
+  const next = supported[nextIdx];
+  switch (next) {
+    case 'bar': return 'View as Bar';
+    case 'hbar': return 'View as Ranking';
+    case 'donut': return 'View as Donut';
+    case 'pie': return 'View as Pie';
+    case 'line': return 'View as Line';
+    case 'area': return 'View as Area';
+    case 'histogram': return 'View as Histogram';
+    case 'boxplot': return 'View as Box Plot';
+    case 'grouped': return 'View Grouped';
+    case 'stacked': return 'View Stacked';
+    case 'heatmap': return 'View Heatmap';
+    case 'scatter': return 'View Scatter';
+    default: return `Switch to ${next}`;
+  }
+}
+
 
 /**
  * Render Data Table Preview
@@ -1148,7 +1325,7 @@ function renderOverviewView() {
 
     ${renderOverviewKPISection()}
 
-    ${renderReservedChartsSection()}
+    ${renderOverviewChartsSection()}
 
     ${state.dataset ? `
       <section class="reserved-section" style="margin-top: 32px;">
@@ -1944,6 +2121,1393 @@ function renderAnalysisView() {
 }
 
 /**
+ * Custom Chart Builder Helper: Compiles form state into a valid chart object
+ */
+function buildCustomChartItem(form, headers, rows, columnTypes) {
+  const xCol = form.xCol || headers[0];
+  const yCol = form.yCol || '__count__';
+  const groupCol = (form.groupCol && form.groupCol !== '__none__') ? form.groupCol : null;
+  const groupCols = Array.isArray(form.groupCols) ? form.groupCols : (groupCol ? [groupCol] : []);
+  const presentation = form.presentation || 'composite';
+  const topN = form.topN || 15;
+  const method = ['__count__', '__pct__', '__distinct__'].includes(yCol) ? 'count' : (form.method || 'sum');
+  const type = form.type || 'bar';
+
+  // Format readable measure label
+  let measureLabel = 'Record Count';
+  if (yCol === '__count__') measureLabel = 'Record Count';
+  else if (yCol === '__pct__') measureLabel = 'Percentage of Records (%)';
+  else if (yCol === '__distinct__') measureLabel = `Distinct Categories Count`;
+  else {
+    const aggNames = { sum: 'Sum', avg: 'Average', min: 'Minimum', max: 'Maximum', median: 'Median', count: 'Count' };
+    measureLabel = `${aggNames[method] || method.toUpperCase()} of ${yCol}`;
+  }
+
+  // Auto-generate clean title if not provided
+  let defaultTitle = '';
+  if (groupCols.length > 0) {
+    defaultTitle = `${measureLabel} by ${xCol} across ${groupCols.join(' × ')}`;
+  } else if (groupCol) {
+    defaultTitle = `${measureLabel} by ${xCol} across ${groupCol}`;
+  } else {
+    defaultTitle = `${measureLabel} by ${xCol}`;
+  }
+  const title = (form.title && form.title.trim()) ? form.title.trim() : defaultTitle;
+
+  // 1. Histogram & Box Plot (single numerical variable distribution)
+  if (type === 'histogram' || type === 'boxplot') {
+    const numCols = headers.filter(h => columnTypes[h] === 'NUMBER');
+    let targetCol = (yCol !== '__count__' && !['__pct__', '__distinct__'].includes(yCol)) ? yCol : xCol;
+    if (columnTypes[targetCol] !== 'NUMBER') {
+      targetCol = numCols[0] || headers[0];
+    }
+    const idx = headers.indexOf(targetCol);
+    const vals = rows.map(r => r ? r[idx] : null);
+    return {
+      id: 'custom-preview',
+      title: (form.title && form.title.trim()) ? form.title.trim() : `${targetCol} ${type === 'histogram' ? 'Frequency Histogram' : 'Box Plot'}`,
+      subtitle: `Distribution analysis of ${targetCol} across ${rows.length} rows`,
+      type,
+      activeType: type,
+      values: vals,
+      metricName: targetCol
+    };
+  }
+
+  // 2. Scatter Plot (two numerical variables)
+  if (type === 'scatter') {
+    const numCols = headers.filter(h => columnTypes[h] === 'NUMBER');
+    const scX = (columnTypes[xCol] === 'NUMBER') ? xCol : (numCols[0] || headers[0]);
+    let scY = (yCol !== '__count__' && !['__pct__', '__distinct__'].includes(yCol) && columnTypes[yCol] === 'NUMBER') ? yCol : (numCols[1] || numCols[0] || headers[1] || headers[0]);
+    if (scX === scY && numCols.length > 1) {
+      scY = numCols.find(c => c !== scX) || scY;
+    }
+    return {
+      id: 'custom-preview',
+      title: (form.title && form.title.trim()) ? form.title.trim() : `${scX} vs ${scY} Scatter Plot`,
+      subtitle: `Bivariate scatter relationship with linear trendline`,
+      type: 'scatter',
+      activeType: 'scatter',
+      rows,
+      headers,
+      xCol: scX,
+      yCol: scY
+    };
+  }
+
+  // 3. Multi-dimensional Analysis (with 1 or more Category / Series columns selected)
+  if (groupCols.length > 0) {
+    const agg = aggregateDataset({
+      rows,
+      headers,
+      xCol,
+      groupCols,
+      yCol,
+      method,
+      presentation,
+      topN
+    });
+
+    let effectiveType = type;
+    if (presentation === 'facets') {
+      effectiveType = 'facets';
+    } else if (type === 'donut' || type === 'pie' || type === 'hbar') {
+      effectiveType = 'grouped';
+    }
+
+    return {
+      id: 'custom-preview',
+      title,
+      subtitle: `Multi-dimensional analysis of ${measureLabel} by ${xCol} categorized by ${groupCols.join(' × ')}`,
+      type: effectiveType,
+      activeType: effectiveType,
+      aggregation: agg,
+      xCol,
+      groupCols,
+      groupCol: groupCols[0],
+      yCol,
+      yLabel: measureLabel,
+      presentation
+    };
+  }
+
+  // 4. Single Dimension Aggregation (Bar, Hbar, Donut, Pie, Line, Area, etc.)
+  const agg = aggregateDataset({
+    rows,
+    headers,
+    xCol,
+    yCol,
+    method
+  });
+
+  let effectiveType = type;
+  if (['grouped', 'stacked', 'stacked100', 'facets'].includes(type)) {
+    effectiveType = 'bar';
+  }
+
+  return {
+    id: 'custom-preview',
+    title,
+    subtitle: `${measureLabel} ranked by ${xCol}`,
+    type: effectiveType,
+    activeType: effectiveType,
+    aggregation: agg,
+    data: agg.series,
+    xCol,
+    yCol,
+    yLabel: measureLabel
+  };
+}
+
+/**
+ * Render Custom Chart Builder Modal Dialog (Phase 2.2.2 Multi-Field Analytics)
+ */
+function renderCustomChartModal() {
+  if (!state.dataset) return '';
+  const { headers, columnTypes, rows } = state.dataset;
+  const form = state.customChartForm;
+
+  const numCols = headers.filter(h => columnTypes[h] === 'NUMBER');
+  const catCols = headers.filter(h => columnTypes[h] === 'CATEGORICAL' || columnTypes[h] === 'TEXT' || columnTypes[h] === 'PERIOD' || columnTypes[h] === 'DATE');
+  const dimCols = headers;
+
+  const selectedCols = Array.isArray(form.groupCols) ? form.groupCols : (form.groupCol && form.groupCol !== '__none__' ? [form.groupCol] : []);
+  const previewItem = buildCustomChartItem(form, headers, rows, columnTypes);
+
+  // Search filter query
+  const query = (form.fieldSearch || '').trim().toLowerCase();
+  const eligibleCols = (form.includeIdentifiers ? headers : headers.filter(h => columnTypes[h] !== 'IDENTIFIER')).filter(h => {
+    if (h === form.xCol) return false;
+    if (!query) return true;
+    return h.toLowerCase().includes(query) || (columnTypes[h] || '').toLowerCase().includes(query);
+  });
+
+  return `
+    <div class="modal-backdrop" id="custom-chart-modal">
+      <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="modal-chart-title" style="max-width: 860px;">
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title" id="modal-chart-title">Custom Multi-Dimensional Chart Builder</h3>
+            <p class="modal-subtitle">Configure format, dimension, calculated/numerical metrics, and multi-field series breakdowns</p>
+          </div>
+          <button type="button" class="modal-close-btn" id="close-custom-chart-modal-btn" aria-label="Close dialog">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="builder-form-grid">
+            <!-- 1. Visualization Format -->
+            <div class="form-group">
+              <label class="form-label" for="builder-chart-type">1. Visualization Format</label>
+              <select class="form-select" id="builder-chart-type">
+                <option value="bar" ${form.type === 'bar' ? 'selected' : ''}>Vertical Bar Chart</option>
+                <option value="hbar" ${form.type === 'hbar' ? 'selected' : ''}>Horizontal Bar Chart</option>
+                <option value="grouped" ${form.type === 'grouped' ? 'selected' : ''}>Grouped Bar Chart</option>
+                <option value="stacked" ${form.type === 'stacked' ? 'selected' : ''}>Stacked Bar Chart</option>
+                <option value="stacked100" ${form.type === 'stacked100' ? 'selected' : ''}>100% Stacked Bar Chart</option>
+                <option value="line" ${form.type === 'line' ? 'selected' : ''}>Line Chart (Trend / Multi-Series)</option>
+                <option value="area" ${form.type === 'area' ? 'selected' : ''}>Area Chart</option>
+                <option value="donut" ${form.type === 'donut' ? 'selected' : ''}>Donut Chart</option>
+                <option value="pie" ${form.type === 'pie' ? 'selected' : ''}>Pie Chart</option>
+                <option value="histogram" ${form.type === 'histogram' ? 'selected' : ''}>Histogram (Distribution)</option>
+                <option value="scatter" ${form.type === 'scatter' ? 'selected' : ''}>Scatter Plot (Bivariate)</option>
+                <option value="heatmap" ${form.type === 'heatmap' ? 'selected' : ''}>Matrix Heatmap (Cross-Tabulation)</option>
+                <option value="facets" ${form.type === 'facets' ? 'selected' : ''}>Small Multiples (Faceted Grid)</option>
+              </select>
+            </div>
+
+            <!-- 2. Dimension (X-Axis) -->
+            <div class="form-group">
+              <label class="form-label" for="builder-x-col">2. X-Axis (Primary Dimension)</label>
+              <select class="form-select" id="builder-x-col">
+                ${dimCols.map(h => `
+                  <option value="${escapeHtml(h)}" ${form.xCol === h ? 'selected' : ''}>
+                    ${escapeHtml(h)} (${columnTypes[h] || 'TEXT'})
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+
+            <!-- 3. Value / Measure (Y-Axis) -->
+            <div class="form-group">
+              <label class="form-label" for="builder-y-col">3. Y-Axis (Value / Measure)</label>
+              <select class="form-select" id="builder-y-col">
+                <optgroup label="GROUP 1: Automatically Calculated Measures">
+                  <option value="__count__" ${form.yCol === '__count__' ? 'selected' : ''}>Record Count (Frequency)</option>
+                  <option value="__pct__" ${form.yCol === '__pct__' ? 'selected' : ''}>Percentage of Records (%)</option>
+                  <option value="__distinct__" ${form.yCol === '__distinct__' ? 'selected' : ''}>Distinct Value Count</option>
+                </optgroup>
+                ${numCols.length > 0 ? `
+                  <optgroup label="GROUP 2: Existing Numerical Columns">
+                    ${numCols.map(h => `
+                      <option value="${escapeHtml(h)}" ${form.yCol === h ? 'selected' : ''}>
+                        ${escapeHtml(h)} (Numerical)
+                      </option>
+                    `).join('')}
+                  </optgroup>
+                ` : ''}
+              </select>
+            </div>
+
+            <!-- Aggregation Method -->
+            <div class="form-group">
+              <label class="form-label" for="builder-method">Aggregation Function</label>
+              <select class="form-select" id="builder-method">
+                <option value="count" ${form.method === 'count' ? 'selected' : ''}>Count (Frequency)</option>
+                <option value="sum" ${form.method === 'sum' ? 'selected' : ''}>Sum (Total)</option>
+                <option value="avg" ${form.method === 'avg' ? 'selected' : ''}>Average (Mean)</option>
+                <option value="min" ${form.method === 'min' ? 'selected' : ''}>Minimum</option>
+                <option value="max" ${form.method === 'max' ? 'selected' : ''}>Maximum</option>
+                <option value="median" ${form.method === 'median' ? 'selected' : ''}>Median</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 4. PART A: Multi-Select Category / Series Field Component -->
+          <div class="field-multi-select-wrap">
+            <div class="field-multi-select-header">
+              <label class="form-label" style="margin: 0;">
+                4. Category / Series (Multi-Dimensional Breakdown)
+              </label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="tab-badge" style="background: ${selectedCols.length > 0 ? 'var(--accent-orange-light)' : 'var(--bg-subtle)'}; color: ${selectedCols.length > 0 ? 'var(--accent-orange-hover)' : 'var(--text-muted)'}; font-size: 11px;">
+                  ${selectedCols.length} ${selectedCols.length === 1 ? 'dimension' : 'dimensions'} selected
+                </span>
+                ${selectedCols.length > 0 ? `
+                  <div class="presentation-toggle-group">
+                    <button type="button" class="presentation-btn ${form.presentation !== 'facets' ? 'active' : ''}" data-pres-set="composite" title="Combine into composite series in single chart">Composite Series</button>
+                    <button type="button" class="presentation-btn ${form.presentation === 'facets' ? 'active' : ''}" data-pres-set="facets" title="Split into small multiples faceted charts">Small Multiples</button>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- Removable Chips Tray -->
+            <div class="field-chips-tray">
+              ${selectedCols.length === 0 ? `
+                <span style="font-size: 11px; color: var(--text-muted); padding-left: 4px;">
+                  (None - Select one or more categorical, period or text fields below)
+                </span>
+              ` : selectedCols.map(col => `
+                <span class="field-chip">
+                  <span>${escapeHtml(col)}</span>
+                  <button type="button" class="field-chip-remove" data-remove-dim="${escapeHtml(col)}" title="Remove dimension">&times;</button>
+                </span>
+              `).join('')}
+            </div>
+
+            <!-- Field Search Input -->
+            <div style="position: relative;">
+              <input type="text" class="field-search-input" id="builder-group-search" value="${escapeHtml(form.fieldSearch || '')}" placeholder="Search eligible categorical and period fields..." />
+            </div>
+
+            <!-- Checkbox List of Available Fields -->
+            <div class="field-checklist">
+              ${eligibleCols.map(h => {
+                const isChecked = selectedCols.includes(h);
+                const type = columnTypes[h] || 'TEXT';
+                const badgeClass = getTypeBadgeClass(type);
+                return `
+                  <div class="field-check-item ${isChecked ? 'selected' : ''}" data-toggle-dim="${escapeHtml(h)}">
+                    <label class="field-check-label">
+                      <input type="checkbox" ${isChecked ? 'checked' : ''} data-dim-check="${escapeHtml(h)}" style="accent-color: var(--accent-orange); cursor: pointer;" />
+                      <span>${escapeHtml(h)}</span>
+                    </label>
+                    <span class="field-badge ${badgeClass}">${type}</span>
+                  </div>
+                `;
+              }).join('')}
+              ${eligibleCols.length === 0 ? `
+                <div style="font-size: 11px; color: var(--text-muted); padding: 8px; text-align: center;">No matching fields found</div>
+              ` : ''}
+            </div>
+
+            <div class="field-actions-bar">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="builder-include-ids" ${form.includeIdentifiers ? 'checked' : ''} style="accent-color: var(--accent-orange);" />
+                <span>Include Identifiers (OBS_ID, Code, etc.)</span>
+              </label>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="field-action-btn" id="builder-select-all-dims">Select All Eligible</button>
+                <span>&bull;</span>
+                <button type="button" class="field-action-btn" id="builder-clear-all-dims">Clear All</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart Title -->
+          <div class="form-group" style="margin-top: -6px;">
+            <label class="form-label" for="builder-title">Custom Chart Title</label>
+            <input type="text" class="form-input" id="builder-title" value="${escapeHtml(form.title)}" placeholder="Auto-generated if left empty" />
+          </div>
+
+          <!-- Configuration Status Pill -->
+          <div style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <strong style="color: var(--accent-orange);">Active Configuration:</strong>
+              <span>X: <strong>${escapeHtml(form.xCol || 'Default')}</strong></span> &bull; 
+              <span>Y: <strong>${escapeHtml(form.yCol === '__count__' ? 'Record Count' : (form.yCol === '__pct__' ? 'Percentage of Records' : (form.yCol === '__distinct__' ? 'Distinct Count' : `${form.method.toUpperCase()} ${form.yCol}`)))}</strong></span>
+              ${selectedCols.length > 0 ? `&bull; <span>Series: <strong>${escapeHtml(selectedCols.join(' × '))}</strong> (${form.presentation === 'facets' ? 'Faceted' : 'Composite'})</span>` : ''}
+            </div>
+            <span class="tab-badge" style="background: var(--accent-orange-light); color: var(--accent-orange-hover);">
+              ${escapeHtml(previewItem.type.toUpperCase())}
+            </span>
+          </div>
+
+          <!-- Live Preview Box -->
+          <div class="builder-preview-box">
+            <div class="builder-preview-header">Live Dynamic Preview</div>
+            <div style="background: #ffffff; border-radius: var(--radius-sm); padding: 12px; border: 1px solid var(--border-color); min-height: 280px; display: flex; align-items: center; justify-content: center; overflow-x: auto;">
+              ${renderDashboardChart(previewItem)}
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-custom-chart-btn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="save-custom-chart-btn">
+            ${icons.sparkles}
+            <span>Add Chart to Dashboard</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render Comprehensive Relationship Discovery Hub (Phase 2.2.2)
+ */
+function renderRelationshipAnalysisHub(dataset, profile) {
+  if (!dataset || !profile) return '';
+
+  const { headers, rows, columnTypes } = dataset;
+  const rels = profile.relationships || {
+    categoricalAssociations: [],
+    numericalCorrelations: [],
+    temporalRelationships: [],
+    numericalByCategorical: []
+  };
+
+  const catCols = headers.filter(h => columnTypes[h] === 'CATEGORICAL' || columnTypes[h] === 'TEXT' || columnTypes[h] === 'PERIOD');
+  const numCols = headers.filter(h => columnTypes[h] === 'NUMBER');
+  const dateCols = headers.filter(h => columnTypes[h] === 'DATE' || columnTypes[h] === 'PERIOD');
+
+  // Initialize selections if needed
+  if (!state.selectedCatColA || !catCols.includes(state.selectedCatColA)) {
+    if (rels.categoricalAssociations && rels.categoricalAssociations.length > 0) {
+      state.selectedCatColA = rels.categoricalAssociations[0].colA;
+      state.selectedCatColB = rels.categoricalAssociations[0].colB;
+    } else {
+      state.selectedCatColA = catCols[0] || '';
+      state.selectedCatColB = catCols[1] || catCols[0] || '';
+    }
+  }
+  if (!state.selectedCatColB || !catCols.includes(state.selectedCatColB)) {
+    state.selectedCatColB = catCols.find(c => c !== state.selectedCatColA) || catCols[0] || '';
+  }
+
+  if (!state.selectedNumColA || !numCols.includes(state.selectedNumColA)) {
+    if (rels.numericalCorrelations && rels.numericalCorrelations.length > 0) {
+      state.selectedNumColA = rels.numericalCorrelations[0].colA;
+      state.selectedNumColB = rels.numericalCorrelations[0].colB;
+    } else {
+      state.selectedNumColA = numCols[0] || '';
+      state.selectedNumColB = numCols[1] || numCols[0] || '';
+    }
+  }
+  if (!state.selectedNumColB || !numCols.includes(state.selectedNumColB)) {
+    state.selectedNumColB = numCols.find(c => c !== state.selectedNumColA) || numCols[0] || '';
+  }
+
+  if (!state.selectedTimeCol || !dateCols.includes(state.selectedTimeCol)) {
+    state.selectedTimeCol = dateCols[0] || '';
+  }
+  if (!state.selectedTimeCatCol || !catCols.includes(state.selectedTimeCatCol)) {
+    state.selectedTimeCatCol = catCols[0] || '';
+  }
+
+  if (!state.selected3WayX) {
+    state.selected3WayX = dateCols[0] || catCols[0] || headers[0];
+  }
+  if (!state.selected3WayS1) {
+    state.selected3WayS1 = catCols.find(c => c !== state.selected3WayX) || catCols[0] || '';
+  }
+  if (!state.selected3WayS2) {
+    state.selected3WayS2 = catCols.find(c => c !== state.selected3WayX && c !== state.selected3WayS1) || catCols[1] || '';
+  }
+  if (!state.selected3WayMetric) {
+    state.selected3WayMetric = '__count__';
+  }
+  if (!state.selected3WayPres) {
+    state.selected3WayPres = 'composite';
+  }
+
+  const subTab = state.relationshipTab || 'overview';
+
+  return `
+    <div class="viz-section-card" id="viz-sec-relationships">
+      <div class="viz-section-header">
+        <div class="viz-section-title-wrap">
+          <h3>
+            <span style="color: #ec4899;">${icons.database}</span>
+            <span>5. Relationship Discovery & Multi-Field Analytics Engine</span>
+          </h3>
+          <p>Multi-dimensional associations, Cramér's V contingency matrices, grouped statistics, and Pearson/Spearman correlations</p>
+        </div>
+        <span class="tab-badge" style="background-color: #fdf2f8; color: #db2777;">
+          ${(rels.categoricalAssociations?.length || 0) + (rels.numericalCorrelations?.length || 0)} Discovered Links
+        </span>
+      </div>
+
+      <!-- Navigation Sub-Tabs -->
+      <div class="rel-tab-bar">
+        <button type="button" class="rel-tab-btn ${subTab === 'overview' ? 'active' : ''}" data-rel-tab="overview">
+          <span>${icons.table}</span>
+          <span>Discovery Overview</span>
+        </button>
+        <button type="button" class="rel-tab-btn ${subTab === 'categorical' ? 'active' : ''}" data-rel-tab="categorical">
+          <span>${icons.pieChart}</span>
+          <span>Categorical × Categorical</span>
+          ${rels.categoricalAssociations?.length ? `<span class="pill-count" style="font-size:10px;">${rels.categoricalAssociations.length}</span>` : ''}
+        </button>
+        <button type="button" class="rel-tab-btn ${subTab === 'num_cat' ? 'active' : ''}" data-rel-tab="num_cat">
+          <span>${icons.barChart}</span>
+          <span>Numerical × Categorical</span>
+        </button>
+        <button type="button" class="rel-tab-btn ${subTab === 'numerical' ? 'active' : ''}" data-rel-tab="numerical">
+          <span>${icons.chart}</span>
+          <span>Numerical × Numerical</span>
+          ${rels.numericalCorrelations?.length ? `<span class="pill-count" style="font-size:10px;">${rels.numericalCorrelations.length}</span>` : ''}
+        </button>
+        <button type="button" class="rel-tab-btn ${subTab === 'temporal' ? 'active' : ''}" data-rel-tab="temporal">
+          <span>${icons.sparkles}</span>
+          <span>Temporal Trends</span>
+          ${dateCols.length ? `<span class="pill-count" style="font-size:10px;">${dateCols.length}</span>` : ''}
+        </button>
+        <button type="button" class="rel-tab-btn ${subTab === 'multidim' ? 'active' : ''}" data-rel-tab="multidim">
+          <span>${icons.database}</span>
+          <span>3-Way Multi-Dimensional Explorer</span>
+        </button>
+      </div>
+
+      <!-- Active Sub-Tab View -->
+      <div class="rel-content-body">
+        ${renderRelationshipTabContent(dataset, profile, subTab, rels, catCols, numCols, dateCols)}
+      </div>
+    </div>
+  `;
+}
+
+function renderRelationshipTabContent(dataset, profile, subTab, rels, catCols, numCols, dateCols) {
+  const { headers, rows, columnTypes } = dataset;
+
+  if (subTab === 'overview') {
+    const topCramer = rels.categoricalAssociations && rels.categoricalAssociations.length > 0 ? rels.categoricalAssociations[0] : null;
+    const topCorr = rels.numericalCorrelations && rels.numericalCorrelations.length > 0 ? rels.numericalCorrelations[0] : null;
+
+    const topCramerVal = topCramer ? (typeof topCramer.cramersV === 'number' ? topCramer.cramersV : 0) : null;
+    const topCorrVal = topCorr ? (typeof topCorr.pearson === 'number' ? topCorr.pearson : (typeof topCorr.r === 'number' ? topCorr.r : 0)) : null;
+
+    return `
+      <!-- KPI Stats -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px;">
+        <div class="kpi-card" style="border-left: 3px solid #ec4899;">
+          <div class="kpi-label">Categorical Associations</div>
+          <div class="kpi-value" style="font-size: 22px;">${rels.categoricalAssociations?.length || 0}</div>
+          <div class="kpi-subtext">${topCramer && topCramerVal !== null ? `Top: ${escapeHtml(topCramer.colA)} &times; ${escapeHtml(topCramer.colB)} (V=${topCramerVal.toFixed(2)})` : 'None identified'}</div>
+        </div>
+        <div class="kpi-card" style="border-left: 3px solid #8b5cf6;">
+          <div class="kpi-label">Numerical Correlations</div>
+          <div class="kpi-value" style="font-size: 22px;">${rels.numericalCorrelations?.length || 0}</div>
+          <div class="kpi-subtext">${topCorr && topCorrVal !== null ? `Top: ${escapeHtml(topCorr.colA)} &times; ${escapeHtml(topCorr.colB)} (r=${topCorrVal.toFixed(2)})` : 'Requires 2+ numerical cols'}</div>
+        </div>
+        <div class="kpi-card" style="border-left: 3px solid #10b981;">
+          <div class="kpi-label">Temporal Dimensions</div>
+          <div class="kpi-value" style="font-size: 22px;">${dateCols.length}</div>
+          <div class="kpi-subtext">${dateCols.length > 0 ? dateCols.slice(0, 2).join(', ') : 'No date fields detected'}</div>
+        </div>
+        <div class="kpi-card" style="border-left: 3px solid var(--accent-orange);">
+          <div class="kpi-label">Categorical Dimensions</div>
+          <div class="kpi-value" style="font-size: 22px;">${catCols.length}</div>
+          <div class="kpi-subtext">Ready for multi-field cross-tabulation</div>
+        </div>
+      </div>
+
+      <!-- Discovered Categorical Associations Table -->
+      <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <div>
+            <h4 style="font-size: 14px; font-weight: 700; color: var(--text-main); margin: 0;">Discovered Categorical Associations (Ranked by Cramér's V)</h4>
+            <p style="font-size: 11px; color: var(--text-muted); margin: 2px 0 0 0;">Cramér's V measures degree of association between nominal variables from 0 (independence) to 1 (perfect association)</p>
+          </div>
+        </div>
+        ${rels.categoricalAssociations && rels.categoricalAssociations.length > 0 ? `
+          <div style="overflow-x: auto;">
+            <table class="data-table" style="font-size: 12px; width: 100%;">
+              <thead>
+                <tr>
+                  <th style="text-align: left;">Dimension 1</th>
+                  <th style="text-align: left;">Dimension 2</th>
+                  <th style="text-align: right;">Cramér's V</th>
+                  <th style="text-align: right;">Chi-Square (&chi;&sup2;)</th>
+                  <th style="text-align: right;">df</th>
+                  <th style="text-align: right;">Sample N</th>
+                  <th style="text-align: center;">Association Strength</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rels.categoricalAssociations.map(a => {
+                  const cVal = typeof a.cramersV === 'number' ? a.cramersV : 0;
+                  const chiVal = typeof a.chiSquare === 'number' ? a.chiSquare : 0;
+                  const dfVal = a.df || 1;
+                  const sampleVal = a.sampleSize || a.observations || 0;
+                  return `
+                  <tr>
+                    <td style="font-weight: 600; text-align: left;">${escapeHtml(a.colA)}</td>
+                    <td style="font-weight: 600; text-align: left;">${escapeHtml(a.colB)}</td>
+                    <td style="text-align: right; font-weight: 700; color: #c2410c;">${cVal.toFixed(3)}</td>
+                    <td style="text-align: right;">${chiVal.toFixed(2)}</td>
+                    <td style="text-align: right;">${dfVal}</td>
+                    <td style="text-align: right;">${sampleVal}</td>
+                    <td style="text-align: center;">
+                      <span class="rel-stat-pill ${a.strength === 'Very Strong' || a.strength === 'Strong' ? 'corr-badge strong-pos' : (a.strength === 'Moderate' ? 'corr-badge mod-pos' : 'corr-badge neutral')}">
+                        ${escapeHtml(a.strength || 'Moderate')}
+                      </span>
+                    </td>
+                    <td style="text-align: right;">
+                      <button type="button" class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" data-jump-rel-cat="${escapeHtml(a.colA)}|${escapeHtml(a.colB)}">
+                        Explore Matrix
+                      </button>
+                    </td>
+                  </tr>
+                `;}).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : `
+          <div class="chart-empty-state">At least 2 categorical columns are required to compute association matrices.</div>
+        `}
+      </div>
+
+      <!-- Discovered Numerical Correlations Table -->
+      <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <div>
+            <h4 style="font-size: 14px; font-weight: 700; color: var(--text-main); margin: 0;">Discovered Numerical Correlations (Ranked by Pearson r & Spearman &rho;)</h4>
+            <p style="font-size: 11px; color: var(--text-muted); margin: 2px 0 0 0;">Linear (Pearson) and monotonic rank (Spearman) relationships between quantitative measures</p>
+          </div>
+        </div>
+        ${rels.numericalCorrelations && rels.numericalCorrelations.length > 0 ? `
+          <div style="overflow-x: auto;">
+            <table class="data-table" style="font-size: 12px; width: 100%;">
+              <thead>
+                <tr>
+                  <th style="text-align: left;">Variable X</th>
+                  <th style="text-align: left;">Variable Y</th>
+                  <th style="text-align: right;">Pearson r</th>
+                  <th style="text-align: right;">Spearman &rho;</th>
+                  <th style="text-align: right;">Valid Pairs</th>
+                  <th style="text-align: center;">Relationship</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rels.numericalCorrelations.map(c => {
+                  const pVal = typeof c.pearson === 'number' ? c.pearson : (typeof c.r === 'number' ? c.r : 0);
+                  const sVal = typeof c.spearman === 'number' ? c.spearman : (typeof c.rho === 'number' ? c.rho : pVal);
+                  const countVal = c.count || c.observations || c.sampleSize || 0;
+                  return `
+                  <tr>
+                    <td style="font-weight: 600; text-align: left;">${escapeHtml(c.colA)}</td>
+                    <td style="font-weight: 600; text-align: left;">${escapeHtml(c.colB)}</td>
+                    <td style="text-align: right; font-weight: 700; color: ${pVal >= 0 ? '#15803d' : '#b91c1c'};">${pVal.toFixed(3)}</td>
+                    <td style="text-align: right; font-weight: 700; color: ${sVal >= 0 ? '#15803d' : '#b91c1c'};">${sVal.toFixed(3)}</td>
+                    <td style="text-align: right;">${countVal}</td>
+                    <td style="text-align: center;">
+                      <span class="rel-stat-pill ${Math.abs(pVal) >= 0.5 ? 'corr-badge strong-pos' : (Math.abs(pVal) >= 0.25 ? 'corr-badge mod-pos' : 'corr-badge neutral')}">
+                        ${escapeHtml(c.strength || 'Moderate')}
+                      </span>
+                    </td>
+                    <td style="text-align: right;">
+                      <button type="button" class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" data-jump-rel-num="${escapeHtml(c.colA)}|${escapeHtml(c.colB)}">
+                        View Scatter & Fit
+                      </button>
+                    </td>
+                  </tr>
+                `;}).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : `
+          <div class="chart-empty-state">At least 2 numerical columns are required to calculate Pearson/Spearman correlation metrics.</div>
+        `}
+      </div>
+    `;
+  }
+
+  if (subTab === 'categorical') {
+    const colA = state.selectedCatColA;
+    const colB = state.selectedCatColB;
+
+    if (!colA || !colB || colA === colB || catCols.length < 2) {
+      return `
+        <div class="rel-controls-bar">
+          <div class="rel-controls-group">
+            <label class="form-label" style="margin:0;">Variable 1 (Rows):</label>
+            <select class="form-select" id="rel-cat-var1" style="width: 190px;">
+              ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === colA ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+            </select>
+            <label class="form-label" style="margin:0 0 0 10px;">Variable 2 (Columns):</label>
+            <select class="form-select" id="rel-cat-var2" style="width: 190px;">
+              ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === colB ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="chart-empty-state">Please select two distinct categorical or period columns to generate the contingency matrix.</div>
+      `;
+    }
+
+    const idxA = headers.indexOf(colA);
+    const idxB = headers.indexOf(colB);
+    const valsA = rows.map(r => r[idxA]);
+    const valsB = rows.map(r => r[idxB]);
+    const ct = calculateContingencyTable(valsA, valsB);
+
+    const mode = state.contingencyMode || 'counts';
+    const agg = aggregateDataset(rows, headers, colA, '__count__', [colB], 'count', 15, 'composite');
+
+    return `
+      <!-- Selector Toolbar -->
+      <div class="rel-controls-bar">
+        <div class="rel-controls-group">
+          <label class="form-label" style="margin:0; font-weight:600;">Variable 1 (Rows):</label>
+          <select class="form-select" id="rel-cat-var1" style="width: 180px;">
+            ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === colA ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <label class="form-label" style="margin:0 0 0 10px; font-weight:600;">Variable 2 (Columns):</label>
+          <select class="form-select" id="rel-cat-var2" style="width: 180px;">
+            ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === colB ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="rel-controls-group">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Matrix Mode:</span>
+          <div class="presentation-toggle-group">
+            <button type="button" class="presentation-btn ${mode === 'counts' ? 'active' : ''}" data-contingency-mode="counts">Raw Counts</button>
+            <button type="button" class="presentation-btn ${mode === 'rowPct' ? 'active' : ''}" data-contingency-mode="rowPct">Row %</button>
+            <button type="button" class="presentation-btn ${mode === 'colPct' ? 'active' : ''}" data-contingency-mode="colPct">Column %</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cramér's V Banner Card -->
+      <div class="cramer-score-card">
+        <div class="cramer-val">${(typeof ct.cramersV === 'number' ? ct.cramersV : 0).toFixed(3)}</div>
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <h4 style="font-size: 14px; font-weight: 700; color: #9a3412; margin: 0;">
+              Cramér's V Association: ${escapeHtml(ct.strength || 'Moderate')}
+            </h4>
+            <span class="rel-stat-pill ${ct.strength === 'Very Strong' || ct.strength === 'Strong' ? 'corr-badge strong-pos' : (ct.strength === 'Moderate' ? 'corr-badge mod-pos' : 'corr-badge neutral')}">
+              V = ${(typeof ct.cramersV === 'number' ? ct.cramersV : 0).toFixed(3)}
+            </span>
+          </div>
+          <p style="font-size: 11px; color: #9a3412; margin: 0;">
+            Chi-Square (&chi;&sup2;) = <strong>${(typeof ct.chiSquare === 'number' ? ct.chiSquare : 0).toFixed(2)}</strong> &bull; 
+            Degrees of Freedom (df) = <strong>${ct.df || 1}</strong> &bull; 
+            Sample Size (N) = <strong>${ct.grandTotal || ct.total || 0}</strong> records
+          </p>
+          ${ct.lowExpectedWarning ? `
+            <div class="stat-notice-box" style="margin-top: 6px; background: #fffbeb; border-color: #f59e0b; color: #92400e;">
+              <strong>Cochran's Rule Advisory:</strong> Sample size is small or some expected cell frequencies are &lt; 5. Cramér's V provides a directional nominal correlation benchmark, but significance tests should be interpreted with caution.
+            </div>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- 2-Column Responsive: Contingency Table & Native SVG Matrix Heatmap -->
+      <div class="rel-grid-2col">
+        <!-- Left: Contingency Table -->
+        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0;">
+              Contingency Cross-Tabulation Matrix
+            </h4>
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">
+              Showing: ${mode === 'counts' ? 'Frequencies' : (mode === 'rowPct' ? 'Row Proportions (%)' : 'Column Proportions (%)')}
+            </span>
+          </div>
+          <div class="contingency-table-wrapper">
+            <table class="contingency-table">
+              <thead>
+                <tr>
+                  <th style="background: var(--bg-card);">${escapeHtml(colA)} \\ ${escapeHtml(colB)}</th>
+                  ${ct.colCategories.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
+                  <th style="background: var(--bg-card); color: var(--accent-orange-hover);">Row Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${ct.rowCategories.map((rCat, rIdx) => {
+                  const rTotal = ct.rowTotals[rIdx] || 0;
+                  return `
+                    <tr>
+                      <td style="font-weight: 600;">${escapeHtml(rCat)}</td>
+                      ${ct.colCategories.map((cCat, cIdx) => {
+                        const count = ct.matrix[rIdx][cIdx] || 0;
+                        const rowP = ct.rowPercentages[rIdx][cIdx] || 0;
+                        const colP = ct.colPercentages[rIdx][cIdx] || 0;
+                        let displayVal = `${count}`;
+                        let subVal = `${rowP.toFixed(1)}% row`;
+                        if (mode === 'rowPct') {
+                          displayVal = `${rowP.toFixed(1)}%`;
+                          subVal = `n = ${count}`;
+                        } else if (mode === 'colPct') {
+                          displayVal = `${colP.toFixed(1)}%`;
+                          subVal = `n = ${count}`;
+                        }
+                        return `
+                          <td>
+                            <div class="contingency-cell-inner">
+                              <span class="contingency-cell-val" style="color: ${count > 0 ? 'var(--text-main)' : 'var(--text-muted)'};">${displayVal}</span>
+                              <span class="contingency-cell-sub">${subVal}</span>
+                            </div>
+                          </td>
+                        `;
+                      }).join('')}
+                      <td style="font-weight: 700; color: var(--accent-orange-hover); background: #fffaf5;">
+                        ${mode === 'rowPct' ? '100.0%' : rTotal}
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+                <tr class="total-row">
+                  <td style="font-weight: 700;">Col Total</td>
+                  ${ct.colCategories.map((cCat, cIdx) => {
+                    const cTotal = ct.colTotals[cIdx] || 0;
+                    const colPctOfGrand = ct.grandTotal > 0 ? (cTotal / ct.grandTotal * 100).toFixed(1) : '0.0';
+                    return `
+                      <td style="font-weight: 700;">
+                        ${mode === 'colPct' ? '100.0%' : cTotal}
+                        <div class="contingency-cell-sub">${colPctOfGrand}% total</div>
+                      </td>
+                    `;
+                  }).join('')}
+                  <td style="font-weight: 800; color: #c2410c; background: #fff7ed;">
+                    ${ct.grandTotal}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right: Native SVG Cross-Tab Heatmap -->
+        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0;">
+              Cross-Tabulation Matrix Heatmap
+            </h4>
+            <span style="font-size: 11px; color: var(--text-muted);">Intensity by count</span>
+          </div>
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 280px; overflow-x: auto;">
+            ${renderSvgCrossTabHeatmap({
+              aggregation: agg,
+              metricLabel: 'Observations',
+              width: 500,
+              height: 290
+            })}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (subTab === 'num_cat') {
+    const numCol = state.selectedNumColA || numCols[0];
+    const catCol = state.selectedCatColA || catCols[0];
+
+    if (!numCol || !catCol || !numCols.length || !catCols.length) {
+      return `<div class="chart-empty-state">At least 1 numerical column and 1 categorical column are required.</div>`;
+    }
+
+    const groupedStats = calculateNumericalByCategorical(rows, headers, catCol, numCol);
+    const agg = aggregateDataset(rows, headers, catCol, numCol, [], 'avg', 15, 'composite');
+
+    return `
+      <!-- Selector Toolbar -->
+      <div class="rel-controls-bar">
+        <div class="rel-controls-group">
+          <label class="form-label" style="margin:0; font-weight:600;">Numerical Measure:</label>
+          <select class="form-select" id="rel-num-metric" style="width: 200px;">
+            ${numCols.map(c => `<option value="${escapeHtml(c)}" ${c === numCol ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <label class="form-label" style="margin:0 0 0 10px; font-weight:600;">Categorical Grouping:</label>
+          <select class="form-select" id="rel-cat-group" style="width: 200px;">
+            ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === catCol ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- Grouped Breakdown Table & SVG Comparison Chart -->
+      <div class="rel-grid-2col">
+        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px;">
+          <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0 0 10px 0;">
+            Grouped Statistics: ${escapeHtml(numCol)} across ${escapeHtml(catCol)}
+          </h4>
+          <div style="overflow-x: auto;">
+            <table class="data-table" style="font-size: 12px; width: 100%;">
+              <thead>
+                <tr>
+                  <th style="text-align: left;">Category</th>
+                  <th style="text-align: right;">Count</th>
+                  <th style="text-align: right;">Mean</th>
+                  <th style="text-align: right;">Median</th>
+                  <th style="text-align: right;">Min</th>
+                  <th style="text-align: right;">Max</th>
+                  <th style="text-align: right;">StdDev</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${groupedStats.map(g => `
+                  <tr>
+                    <td style="font-weight: 600; text-align: left;">${escapeHtml(g.category)}</td>
+                    <td style="text-align: right;">${g.count}</td>
+                    <td style="text-align: right; font-weight: 700; color: var(--accent-orange-hover);">${formatMetricNumber(g.mean)}</td>
+                    <td style="text-align: right;">${formatMetricNumber(g.median)}</td>
+                    <td style="text-align: right;">${formatMetricNumber(g.min)}</td>
+                    <td style="text-align: right;">${formatMetricNumber(g.max)}</td>
+                    <td style="text-align: right;">${formatMetricNumber(g.stdDev)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column;">
+          <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0 0 10px 0;">
+            Average ${escapeHtml(numCol)} by ${escapeHtml(catCol)}
+          </h4>
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 280px;">
+            ${renderSvgHorizontalBarChart({
+              aggregation: agg,
+              metricLabel: `Average ${numCol}`,
+              width: 500,
+              height: 280
+            })}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (subTab === 'numerical') {
+    const colA = state.selectedNumColA;
+    const colB = state.selectedNumColB;
+
+    if (!colA || !colB || colA === colB || numCols.length < 2) {
+      return `
+        <div class="rel-controls-bar">
+          <div class="rel-controls-group">
+            <label class="form-label" style="margin:0;">Variable X:</label>
+            <select class="form-select" id="rel-num-var1" style="width: 190px;">
+              ${numCols.map(c => `<option value="${escapeHtml(c)}" ${c === colA ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+            </select>
+            <label class="form-label" style="margin:0 0 0 10px;">Variable Y:</label>
+            <select class="form-select" id="rel-num-var2" style="width: 190px;">
+              ${numCols.map(c => `<option value="${escapeHtml(c)}" ${c === colB ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="chart-empty-state">Please select two distinct numerical columns to analyze linear and monotonic relationships.</div>
+      `;
+    }
+
+    const idxA = headers.indexOf(colA);
+    const idxB = headers.indexOf(colB);
+    const pairs = [];
+    rows.forEach(r => {
+      const vA = parseFloat(r[idxA]);
+      const vB = parseFloat(r[idxB]);
+      if (!isNaN(vA) && !isNaN(vB)) {
+        pairs.push({ x: vA, y: vB });
+      }
+    });
+
+    const valsA = pairs.map(p => p.x);
+    const valsB = pairs.map(p => p.y);
+    const spearmanRes = calculateSpearmanCorrelation(valsA, valsB);
+    const spearmanRho = (spearmanRes && typeof spearmanRes.rho === 'number' && !isNaN(spearmanRes.rho)) 
+      ? spearmanRes.rho 
+      : ((typeof spearmanRes === 'number' && !isNaN(spearmanRes)) ? spearmanRes : 0);
+
+    // Pearson r
+    let pearson = 0;
+    if (pairs.length > 1) {
+      const mA = valsA.reduce((s, v) => s + v, 0) / pairs.length;
+      const mB = valsB.reduce((s, v) => s + v, 0) / pairs.length;
+      let num = 0, denA = 0, denB = 0;
+      for (let i = 0; i < pairs.length; i++) {
+        const dA = valsA[i] - mA;
+        const dB = valsB[i] - mB;
+        num += dA * dB;
+        denA += dA * dA;
+        denB += dB * dB;
+      }
+      const denom = Math.sqrt(denA * denB);
+      pearson = denom > 0 ? (num / denom) : 0;
+    }
+
+    const r2 = pearson * pearson;
+
+    return `
+      <!-- Selector Toolbar -->
+      <div class="rel-controls-bar">
+        <div class="rel-controls-group">
+          <label class="form-label" style="margin:0; font-weight:600;">Variable X:</label>
+          <select class="form-select" id="rel-num-var1" style="width: 190px;">
+            ${numCols.map(c => `<option value="${escapeHtml(c)}" ${c === colA ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <label class="form-label" style="margin:0 0 0 10px; font-weight:600;">Variable Y:</label>
+          <select class="form-select" id="rel-num-var2" style="width: 190px;">
+            ${numCols.map(c => `<option value="${escapeHtml(c)}" ${c === colB ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px;">
+        <div class="kpi-card" style="border-left: 3px solid ${pearson >= 0 ? '#10b981' : '#ef4444'};">
+          <div class="kpi-label">Pearson Correlation (r)</div>
+          <div class="kpi-value" style="font-size: 22px; color: ${pearson >= 0 ? '#047857' : '#b91c1c'};">${pearson.toFixed(3)}</div>
+          <div class="kpi-subtext">Linear Association (${Math.abs(pearson) >= 0.5 ? 'Strong' : (Math.abs(pearson) >= 0.25 ? 'Moderate' : 'Weak')})</div>
+        </div>
+        <div class="kpi-card" style="border-left: 3px solid #8b5cf6;">
+          <div class="kpi-label">Spearman Rank (&rho;)</div>
+          <div class="kpi-value" style="font-size: 22px; color: #6d28d9;">${spearmanRho.toFixed(3)}</div>
+          <div class="kpi-subtext">Monotonic Rank Association</div>
+        </div>
+        <div class="kpi-card" style="border-left: 3px solid var(--accent-orange);">
+          <div class="kpi-label">Variance Explained (R&sup2;)</div>
+          <div class="kpi-value" style="font-size: 22px; color: var(--accent-orange-hover);">${(r2 * 100).toFixed(1)}%</div>
+          <div class="kpi-subtext">Proportion of variance shared</div>
+        </div>
+        <div class="kpi-card" style="border-left: 3px solid #0284c7;">
+          <div class="kpi-label">Valid Paired Records</div>
+          <div class="kpi-value" style="font-size: 22px; color: #0369a1;">${pairs.length}</div>
+          <div class="kpi-subtext">Non-null numerical observations</div>
+        </div>
+      </div>
+
+      <!-- Scatter Plot and Correlation Matrix -->
+      <div class="rel-grid-2col">
+        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column;">
+          <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0 0 10px 0;">
+            Bivariate Scatter & Linear Trendline
+          </h4>
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 300px;">
+            ${renderSvgScatterPlot({
+              xCol: colA,
+              yCol: colB,
+              xValues: valsA,
+              yValues: valsB,
+              width: 500,
+              height: 300
+            })}
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column;">
+          <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0 0 10px 0;">
+            All-Pairs Correlation Matrix Heatmap
+          </h4>
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 300px;">
+            ${renderSvgCorrelationHeatmap(profile.correlations || [], 500, 300)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (subTab === 'temporal') {
+    const timeCol = state.selectedTimeCol || dateCols[0];
+    const catCol = state.selectedTimeCatCol || catCols[0];
+
+    if (!timeCol || !catCol || !dateCols.length) {
+      return `<div class="chart-empty-state">No date or period columns available in this dataset for temporal trend progression.</div>`;
+    }
+
+    const agg = aggregateDataset(rows, headers, timeCol, '__count__', [catCol], 'count', 15, 'composite');
+
+    return `
+      <!-- Selector Toolbar -->
+      <div class="rel-controls-bar">
+        <div class="rel-controls-group">
+          <label class="form-label" style="margin:0; font-weight:600;">Date / Period Field:</label>
+          <select class="form-select" id="rel-time-col" style="width: 200px;">
+            ${dateCols.map(c => `<option value="${escapeHtml(c)}" ${c === timeCol ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <label class="form-label" style="margin:0 0 0 10px; font-weight:600;">Category Breakdown:</label>
+          <select class="form-select" id="rel-time-cat-col" style="width: 200px;">
+            ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === catCol ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0 0 10px 0;">
+          Timeline Progression: ${escapeHtml(catCol)} volume over ${escapeHtml(timeCol)}
+        </h4>
+        <div style="min-height: 320px; display: flex; align-items: center; justify-content: center;">
+          ${renderSvgLineChart({
+            aggregation: agg,
+            metricLabel: 'Record Volume',
+            isArea: true,
+            width: 820,
+            height: 320
+          })}
+        </div>
+      </div>
+    `;
+  }
+
+  if (subTab === 'multidim') {
+    const xCol = state.selected3WayX || headers[0];
+    const s1 = state.selected3WayS1 || '';
+    const s2 = state.selected3WayS2 || '';
+    const metric = state.selected3WayMetric || '__count__';
+    const pres = state.selected3WayPres || 'composite';
+
+    const groupCols = [s1, s2].filter(Boolean);
+    const aggMethod = (metric !== '__count__' && metric !== '__pct__' && metric !== '__distinct__') ? 'sum' : 'count';
+    const agg = aggregateDataset(rows, headers, xCol, metric, groupCols, aggMethod, 15, pres);
+
+    const chartItem = {
+      id: 'preview-3way',
+      type: pres === 'facets' ? 'facets' : (pres === 'stacked100' ? 'stacked100' : 'grouped'),
+      title: `${xCol} by ${groupCols.join(' × ')}`,
+      xCol,
+      yCol: metric,
+      groupCols,
+      presentation: pres,
+      aggregation: agg,
+      metricLabel: metric === '__count__' ? 'Record Count' : metric
+    };
+
+    return `
+      <!-- 3-Way Explorer Toolbar -->
+      <div class="rel-controls-bar">
+        <div class="rel-controls-group">
+          <label class="form-label" style="margin:0; font-weight:600;">1. Primary X:</label>
+          <select class="form-select" id="rel-3way-x" style="width: 150px;">
+            ${headers.map(c => `<option value="${escapeHtml(c)}" ${c === xCol ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+
+          <label class="form-label" style="margin:0 0 0 6px; font-weight:600;">2. Series 1:</label>
+          <select class="form-select" id="rel-3way-s1" style="width: 150px;">
+            <option value="">(None)</option>
+            ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === s1 ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+
+          <label class="form-label" style="margin:0 0 0 6px; font-weight:600;">3. Series 2:</label>
+          <select class="form-select" id="rel-3way-s2" style="width: 150px;">
+            <option value="">(None)</option>
+            ${catCols.map(c => `<option value="${escapeHtml(c)}" ${c === s2 ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+
+          <label class="form-label" style="margin:0 0 0 6px; font-weight:600;">Measure:</label>
+          <select class="form-select" id="rel-3way-metric" style="width: 140px;">
+            <option value="__count__" ${metric === '__count__' ? 'selected' : ''}>Record Count</option>
+            <option value="__pct__" ${metric === '__pct__' ? 'selected' : ''}>Percentage (%)</option>
+            ${numCols.map(c => `<option value="${escapeHtml(c)}" ${metric === c ? 'selected' : ''}>${escapeHtml(c)} (Sum)</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="rel-controls-group">
+          <label class="form-label" style="margin:0; font-weight:600;">Format:</label>
+          <select class="form-select" id="rel-3way-pres" style="width: 150px;">
+            <option value="composite" ${pres === 'composite' ? 'selected' : ''}>Grouped Bars</option>
+            <option value="stacked" ${pres === 'stacked' ? 'selected' : ''}>Stacked Bars</option>
+            <option value="stacked100" ${pres === 'stacked100' ? 'selected' : ''}>100% Stacked</option>
+            <option value="facets" ${pres === 'facets' ? 'selected' : ''}>Small Multiples</option>
+          </select>
+
+          <button type="button" class="btn btn-primary btn-sm" id="rel-add-3way-chart">
+            ${icons.sparkles}
+            <span>Pin to Dashboard</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live 3-Way Chart Visualization -->
+      <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <div>
+            <h4 style="font-size: 14px; font-weight: 700; color: var(--text-main); margin: 0;">
+              3-Way Multi-Dimensional Visualization: ${escapeHtml(xCol)} &times; ${escapeHtml(groupCols.join(' &times; '))}
+            </h4>
+            <p style="font-size: 11px; color: var(--text-muted); margin: 2px 0 0 0;">
+              Higher-order interaction cross-tabulating ${agg.categories.length} primary groups across ${agg.groups.length} composite sub-dimensions
+            </p>
+          </div>
+          <span class="tab-badge" style="background: var(--accent-orange-light); color: var(--accent-orange-hover);">
+            ${groupCols.length} Multi-Dimensions Active
+          </span>
+        </div>
+        <div style="min-height: 340px; display: flex; align-items: center; justify-content: center; overflow-x: auto;">
+          ${renderDashboardChart(chartItem)}
+        </div>
+      </div>
+
+      <!-- 3-Way Cross-Tabulation Matrix Table -->
+      <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0 0 10px 0;">
+          3-Way Cross-Tabulation Data Matrix
+        </h4>
+        <div style="overflow-x: auto;">
+          <table class="data-table" style="font-size: 12px; width: 100%;">
+            <thead>
+              <tr>
+                <th style="text-align: left;">${escapeHtml(xCol)}</th>
+                ${agg.groups.map(g => `<th style="text-align: right;">${escapeHtml(g)}</th>`).join('')}
+                <th style="text-align: right; background: #fffaf5; color: var(--accent-orange-hover);">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${agg.categories.map((cat, idx) => {
+                const s = agg.series[idx];
+                const rowTotal = agg.groups.reduce((acc, g) => acc + (s && s.groupMetrics ? (s.groupMetrics[g] || 0) : 0), 0);
+                return `
+                  <tr>
+                    <td style="font-weight: 600; text-align: left;">${escapeHtml(cat)}</td>
+                    ${agg.groups.map(g => {
+                      const v = s && s.groupMetrics ? (s.groupMetrics[g] || 0) : 0;
+                      return `
+                        <td style="text-align: right; color: ${v > 0 ? 'var(--text-main)' : 'var(--text-muted)'}; font-weight: ${v > 0 ? '600' : '400'};">
+                          ${formatMetricNumber(v)}
+                        </td>
+                      `;
+                    }).join('')}
+                    <td style="text-align: right; font-weight: 700; color: var(--accent-orange-hover); background: #fffaf5;">
+                      ${formatMetricNumber(rowTotal)}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  return '';
+}
+
+/**
+ * Main Visualizations Tab Renderer (Phase 2.2 Suite)
+ */
+function renderVisualizationsView() {
+  if (!state.dataset || !state.charts) {
+    return `
+      <div class="profile-card" style="margin-bottom: 24px;">
+        <div class="empty-state-panel" style="min-height: 380px;">
+          <div class="empty-state-icon">${icons.barChart}</div>
+          <h3 class="empty-state-title">No Dataset Loaded for Visualizations</h3>
+          <p class="empty-state-desc">
+            Upload an Excel (.xlsx, .xls) or CSV (.csv) file, or select a sample dataset on the Overview tab to automatically generate complete multi-dimensional SVG visualizations, distribution charts, and interactive custom builders.
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
+  const { distribution, comparisons, numerical, temporal, relationships } = state.charts;
+  const filter = state.visualizationsFilter;
+
+  const showDist = filter === 'all' || filter === 'distribution';
+  const showComp = filter === 'all' || filter === 'comparisons';
+  const showNum = filter === 'all' || filter === 'numerical';
+  const showTemp = filter === 'all' || filter === 'temporal';
+  const showRel = filter === 'all' || filter === 'relationships';
+  const showCustom = filter === 'all' || filter === 'custom';
+
+  return `
+    <div class="viz-container">
+      <!-- Section Header -->
+      <div class="section-header" style="margin-bottom: 0;">
+        <div class="section-title-wrap">
+          <h2 class="section-title">Dynamic Data Visualizations & Analytics Suite</h2>
+          <p class="section-subtitle">
+            Domain-agnostic SVG visualizers generated from ${state.dataset.totalRecords.toLocaleString()} records in "${escapeHtml(state.file ? state.file.name : 'dataset')}"
+          </p>
+        </div>
+      </div>
+
+      <!-- Top Toolbar -->
+      <div class="viz-toolbar">
+        <div class="viz-filter-pills">
+          <button type="button" class="viz-filter-btn ${filter === 'all' ? 'active' : ''}" data-filter="all">
+            <span>All Visualizations</span>
+          </button>
+          <button type="button" class="viz-filter-btn ${filter === 'distribution' ? 'active' : ''}" data-filter="distribution">
+            <span>Distribution Analysis</span>
+            <span class="pill-count">${distribution.length}</span>
+          </button>
+          <button type="button" class="viz-filter-btn ${filter === 'comparisons' ? 'active' : ''}" data-filter="comparisons">
+            <span>Category Comparisons</span>
+            <span class="pill-count">${comparisons.length}</span>
+          </button>
+          <button type="button" class="viz-filter-btn ${filter === 'numerical' ? 'active' : ''}" data-filter="numerical">
+            <span>Numerical Analysis</span>
+            <span class="pill-count">${numerical.length}</span>
+          </button>
+          <button type="button" class="viz-filter-btn ${filter === 'temporal' ? 'active' : ''}" data-filter="temporal">
+            <span>Time-Series</span>
+            <span class="pill-count">${temporal.length}</span>
+          </button>
+          <button type="button" class="viz-filter-btn ${filter === 'relationships' ? 'active' : ''}" data-filter="relationships">
+            <span>Relationships</span>
+            <span class="pill-count">${relationships.length}</span>
+          </button>
+          ${state.customCharts.length > 0 ? `
+            <button type="button" class="viz-filter-btn ${filter === 'custom' ? 'active' : ''}" data-filter="custom">
+              <span>Custom Charts</span>
+              <span class="pill-count">${state.customCharts.length}</span>
+            </button>
+          ` : ''}
+        </div>
+
+        <button type="button" class="btn btn-primary btn-sm" id="open-custom-chart-modal-btn">
+          ${icons.sparkles}
+          <span>Create Custom Chart</span>
+        </button>
+      </div>
+
+      <!-- 1. Distribution Analysis -->
+      ${showDist && distribution.length > 0 ? `
+        <div class="viz-section-card" id="viz-sec-distribution">
+          <div class="viz-section-header">
+            <div class="viz-section-title-wrap">
+              <h3>
+                <span style="color: var(--accent-orange);">${icons.pieChart}</span>
+                <span>1. Distribution Analysis</span>
+              </h3>
+              <p>Categorical compositions, frequency shares, and proportional distributions</p>
+            </div>
+            <span class="tab-badge" style="background-color: var(--accent-orange-light); color: var(--accent-orange-hover);">
+              ${distribution.length} Visualizers
+            </span>
+          </div>
+          <div class="viz-charts-grid">
+            ${distribution.map(c => renderChartCard(c)).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 2. Category Comparisons -->
+      ${showComp && comparisons.length > 0 ? `
+        <div class="viz-section-card" id="viz-sec-comparisons">
+          <div class="viz-section-header">
+            <div class="viz-section-title-wrap">
+              <h3>
+                <span style="color: #0284c7;">${icons.barChart}</span>
+                <span>2. Category Comparisons</span>
+              </h3>
+              <p>Horizontal category rankings, metric breakdowns, and cross-tabulation groupings</p>
+            </div>
+            <span class="tab-badge" style="background-color: #f0f9ff; color: #0284c7;">
+              ${comparisons.length} Visualizers
+            </span>
+          </div>
+          <div class="viz-charts-grid">
+            ${comparisons.map(c => renderChartCard(c)).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 3. Numerical Analysis -->
+      ${showNum && numerical.length > 0 ? `
+        <div class="viz-section-card" id="viz-sec-numerical">
+          <div class="viz-section-header">
+            <div class="viz-section-title-wrap">
+              <h3>
+                <span style="color: #8b5cf6;">${icons.chart}</span>
+                <span>3. Numerical Analysis</span>
+              </h3>
+              <p>Frequency histograms with distribution curves, central tendency, and Five-Number summary box plots</p>
+            </div>
+            <span class="tab-badge" style="background-color: #f5f3ff; color: #7c3aed;">
+              ${numerical.length} Visualizers
+            </span>
+          </div>
+          <div class="viz-charts-grid">
+            ${numerical.map(c => renderChartCard(c)).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 4. Time-Series Analysis -->
+      ${showTemp ? `
+        <div class="viz-section-card" id="viz-sec-temporal">
+          <div class="viz-section-header">
+            <div class="viz-section-title-wrap">
+              <h3>
+                <span style="color: #10b981;">${icons.sparkles}</span>
+                <span>4. Time-Series Analysis</span>
+              </h3>
+              <p>Chronological trends, timeline trajectories, and sequential volume progressions</p>
+            </div>
+            <span class="tab-badge" style="background-color: #ecfdf5; color: #047857;">
+              ${temporal.length} Visualizers
+            </span>
+          </div>
+          <div class="viz-charts-grid">
+            ${temporal.length > 0 ? temporal.map(c => renderChartCard(c)).join('') : `
+              <div class="chart-empty-state" style="grid-column: 1 / -1;">
+                No temporal date or period columns detected in this dataset. To chart chronological trends, upload a dataset with date or period fields (e.g. YYYY-MM-DD, 2026-Q1).
+              </div>
+            `}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 5. Relationship Discovery & Multi-Field Analytics Engine -->
+      ${showRel ? renderRelationshipAnalysisHub(state.dataset, state.dataset.profile) : ''}
+
+      <!-- 6. Custom Visualizations -->
+      ${(showCustom || state.customCharts.length > 0) ? `
+        <div class="viz-section-card" id="viz-sec-custom">
+          <div class="viz-section-header">
+            <div class="viz-section-title-wrap">
+              <h3>
+                <span style="color: var(--accent-orange);">${icons.sparkles}</span>
+                <span>User-Controlled Custom Charts</span>
+              </h3>
+              <p>Bespoke visualizers created through the dynamic chart builder</p>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="add-another-custom-chart-btn">
+              + New Custom Chart
+            </button>
+          </div>
+          <div class="viz-charts-grid">
+            ${state.customCharts.length > 0 ? state.customCharts.map(c => renderChartCard(c)).join('') : `
+              <div class="chart-empty-state" style="grid-column: 1 / -1;">
+                No custom charts created yet. Click "Create Custom Chart" above to configure your own dimensions, metrics, and chart types.
+              </div>
+            `}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Modal and Tooltip -->
+      ${state.isCustomChartModalOpen ? renderCustomChartModal() : ''}
+      <div id="chart-tooltip"></div>
+    </div>
+  `;
+}
+
+/**
  * Render Reserved Insights View
  */
 function renderInsightsView() {
@@ -2036,6 +3600,9 @@ function renderApp() {
   switch (state.activeTab) {
     case 'preview':
       activeViewContent = renderPreviewView();
+      break;
+    case 'visualizations':
+      activeViewContent = renderVisualizationsView();
       break;
     case 'analysis':
       activeViewContent = renderAnalysisView();
@@ -2256,7 +3823,486 @@ function attachEventListeners() {
       renderApp();
     });
   }
+
+  // Jump to Visualizations Button (from Overview tab)
+  ['jump-to-visualizations-btn', 'jump-to-visualizations-btn-2'].forEach(btnId => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        state.activeTab = 'visualizations';
+        state.visualizationsFilter = 'all';
+        renderApp();
+      });
+    }
+  });
+
+  // Visualization Filter Pills
+  document.querySelectorAll('.viz-filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const filter = e.currentTarget.getAttribute('data-filter') || 'all';
+      if (filter !== state.visualizationsFilter) {
+        state.visualizationsFilter = filter;
+        renderApp();
+      }
+    });
+  });
+
+  // Chart Toggle Buttons (e.g. Bar <-> Donut, Grouped <-> Stacked)
+  document.querySelectorAll('.chart-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const chartId = e.currentTarget.getAttribute('data-chart-id');
+      if (!chartId) return;
+
+      // Search chart in recommended or custom charts
+      let chart = null;
+      if (state.charts) {
+        const allRec = [
+          ...(state.charts.distribution || []),
+          ...(state.charts.comparisons || []),
+          ...(state.charts.numerical || []),
+          ...(state.charts.temporal || []),
+          ...(state.charts.relationships || [])
+        ];
+        chart = allRec.find(c => c.id === chartId);
+      }
+      if (!chart) {
+        chart = state.customCharts.find(c => c.id === chartId);
+      }
+
+      if (chart && chart.supportedTypes && chart.supportedTypes.length > 1) {
+        const current = state.chartToggles[chartId] || chart.activeType || chart.type;
+        const currentIdx = chart.supportedTypes.indexOf(current);
+        const nextIdx = (currentIdx + 1) % chart.supportedTypes.length;
+        const next = chart.supportedTypes[nextIdx];
+        state.chartToggles[chartId] = next;
+        renderApp();
+      }
+    });
+  });
+
+  // Export SVG Action (Standalone vector export for business presentations)
+  document.querySelectorAll('.chart-export-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const card = e.currentTarget.closest('.chart-card');
+      const svg = card ? card.querySelector('svg') : null;
+      if (!svg) return;
+
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      const downloadLink = document.createElement('a');
+      downloadLink.href = svgUrl;
+      const chartId = e.currentTarget.getAttribute('data-export-chart') || 'chart';
+      downloadLink.download = `data_analysis_${chartId}.svg`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(svgUrl);
+    });
+  });
+
+  // Open Custom Chart Modal
+  ['open-custom-chart-modal-btn', 'add-another-custom-chart-btn'].forEach(btnId => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        if (!state.dataset) return;
+        const { headers, columnTypes } = state.dataset;
+        // Sensible initial defaults
+        state.customChartForm = {
+          type: 'bar',
+          xCol: headers.find(h => columnTypes[h] === 'CATEGORICAL' || columnTypes[h] === 'DATE' || columnTypes[h] === 'PERIOD') || headers[0],
+          yCol: '__count__',
+          groupCols: [],
+          presentation: 'composite',
+          fieldSearch: '',
+          includeIdentifiers: false,
+          topN: 15,
+          method: 'count',
+          title: ''
+        };
+        state.isCustomChartModalOpen = true;
+        renderApp();
+      });
+    }
+  });
+
+  // Close Custom Chart Modal
+  ['close-custom-chart-modal-btn', 'cancel-custom-chart-btn'].forEach(btnId => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        state.isCustomChartModalOpen = false;
+        renderApp();
+      });
+    }
+  });
+
+  // Builder Modal Form Input Listeners (Updates live preview)
+  const bType = document.getElementById('builder-chart-type');
+  const bX = document.getElementById('builder-x-col');
+  const bY = document.getElementById('builder-y-col');
+  const bMethod = document.getElementById('builder-method');
+  const bTitle = document.getElementById('builder-title');
+
+  function updateModalPreview() {
+    if (bType) state.customChartForm.type = bType.value;
+    if (bX) state.customChartForm.xCol = bX.value;
+    if (bY) state.customChartForm.yCol = bY.value;
+    if (bMethod) state.customChartForm.method = bMethod.value;
+    if (bTitle) state.customChartForm.title = bTitle.value;
+    renderApp();
+  }
+
+  [bType, bX, bY, bMethod].forEach(el => {
+    if (el) el.addEventListener('change', updateModalPreview);
+  });
+
+  if (bTitle) {
+    bTitle.addEventListener('input', (e) => {
+      state.customChartForm.title = e.target.value;
+      const previewBox = document.querySelector('.builder-preview-box > div');
+      if (previewBox && state.dataset) {
+        const item = buildCustomChartItem(state.customChartForm, state.dataset.headers, state.dataset.rows, state.dataset.columnTypes);
+        previewBox.innerHTML = renderDashboardChart(item);
+      }
+    });
+  }
+
+  function toggleBuilderDim(dim, forceState) {
+    if (!Array.isArray(state.customChartForm.groupCols)) {
+      state.customChartForm.groupCols = [];
+    }
+    const idx = state.customChartForm.groupCols.indexOf(dim);
+    if (forceState === true || (forceState === undefined && idx === -1)) {
+      if (idx === -1) state.customChartForm.groupCols.push(dim);
+    } else if (forceState === false || (forceState === undefined && idx !== -1)) {
+      if (idx !== -1) state.customChartForm.groupCols.splice(idx, 1);
+    }
+    if (state.customChartForm.groupCols.length > 0 && ['bar', 'hbar'].includes(state.customChartForm.type)) {
+      state.customChartForm.type = 'grouped';
+    } else if (state.customChartForm.groupCols.length === 0 && ['grouped', 'stacked', 'stacked100', 'facets'].includes(state.customChartForm.type)) {
+      state.customChartForm.type = 'bar';
+    }
+    renderApp();
+  }
+
+  document.querySelectorAll('[data-toggle-dim]').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.tagName.toLowerCase() === 'input') return;
+      const dim = item.getAttribute('data-toggle-dim');
+      if (dim) toggleBuilderDim(dim);
+    });
+  });
+
+  document.querySelectorAll('[data-dim-check]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const dim = e.currentTarget.getAttribute('data-dim-check');
+      if (dim) toggleBuilderDim(dim, e.currentTarget.checked);
+    });
+  });
+
+  document.querySelectorAll('[data-remove-dim]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dim = e.currentTarget.getAttribute('data-remove-dim');
+      if (dim && state.customChartForm.groupCols) {
+        state.customChartForm.groupCols = state.customChartForm.groupCols.filter(c => c !== dim);
+        if (state.customChartForm.groupCols.length === 0 && ['grouped', 'stacked', 'stacked100', 'facets'].includes(state.customChartForm.type)) {
+          state.customChartForm.type = 'bar';
+        }
+        renderApp();
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-pres-set]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pres = e.currentTarget.getAttribute('data-pres-set');
+      if (pres) {
+        state.customChartForm.presentation = pres;
+        if (pres === 'facets' && state.customChartForm.type !== 'facets') {
+          state.customChartForm.type = 'facets';
+        }
+        renderApp();
+      }
+    });
+  });
+
+  const selectAllBtn = document.getElementById('builder-select-all-dims');
+  if (selectAllBtn && state.dataset) {
+    selectAllBtn.addEventListener('click', () => {
+      const { headers, columnTypes } = state.dataset;
+      const q = (state.customChartForm.fieldSearch || '').trim().toLowerCase();
+      const eligible = (state.customChartForm.includeIdentifiers ? headers : headers.filter(h => columnTypes[h] !== 'IDENTIFIER')).filter(h => {
+        if (h === state.customChartForm.xCol) return false;
+        if (!q) return true;
+        return h.toLowerCase().includes(q) || (columnTypes[h] || '').toLowerCase().includes(q);
+      });
+      state.customChartForm.groupCols = eligible;
+      if (state.customChartForm.groupCols.length > 0 && ['bar', 'hbar'].includes(state.customChartForm.type)) {
+        state.customChartForm.type = 'grouped';
+      }
+      renderApp();
+    });
+  }
+
+  const clearAllBtn = document.getElementById('builder-clear-all-dims');
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', () => {
+      state.customChartForm.groupCols = [];
+      if (['grouped', 'stacked', 'stacked100', 'facets'].includes(state.customChartForm.type)) {
+        state.customChartForm.type = 'bar';
+      }
+      renderApp();
+    });
+  }
+
+  const includeIdsCheck = document.getElementById('builder-include-ids');
+  if (includeIdsCheck) {
+    includeIdsCheck.addEventListener('change', (e) => {
+      state.customChartForm.includeIdentifiers = e.target.checked;
+      renderApp();
+    });
+  }
+
+  const builderSearchInput = document.getElementById('builder-group-search');
+  if (builderSearchInput) {
+    builderSearchInput.addEventListener('input', (e) => {
+      state.customChartForm.fieldSearch = e.target.value;
+      const listEl = document.querySelector('.field-checklist');
+      if (listEl && state.dataset) {
+        const { headers, columnTypes } = state.dataset;
+        const q = (e.target.value || '').trim().toLowerCase();
+        const selectedCols = state.customChartForm.groupCols || [];
+        const eligible = (state.customChartForm.includeIdentifiers ? headers : headers.filter(h => columnTypes[h] !== 'IDENTIFIER')).filter(h => {
+          if (h === state.customChartForm.xCol) return false;
+          if (!q) return true;
+          return h.toLowerCase().includes(q) || (columnTypes[h] || '').toLowerCase().includes(q);
+        });
+        listEl.innerHTML = eligible.map(h => {
+          const isChecked = selectedCols.includes(h);
+          const type = columnTypes[h] || 'TEXT';
+          const badgeClass = getTypeBadgeClass(type);
+          return `
+            <div class="field-check-item ${isChecked ? 'selected' : ''}" data-toggle-dim="${escapeHtml(h)}">
+              <label class="field-check-label">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} data-dim-check="${escapeHtml(h)}" style="accent-color: var(--accent-orange); cursor: pointer;" />
+                <span>${escapeHtml(h)}</span>
+              </label>
+              <span class="field-badge ${badgeClass}">${type}</span>
+            </div>
+          `;
+        }).join('') || '<div style="font-size: 11px; color: var(--text-muted); padding: 8px; text-align: center;">No matching fields found</div>';
+
+        listEl.querySelectorAll('[data-toggle-dim]').forEach(item => {
+          item.addEventListener('click', (ev) => {
+            if (ev.target.tagName.toLowerCase() === 'input') return;
+            const d = item.getAttribute('data-toggle-dim');
+            toggleBuilderDim(d);
+          });
+        });
+        listEl.querySelectorAll('[data-dim-check]').forEach(inp => {
+          inp.addEventListener('change', (ev) => {
+            const d = ev.currentTarget.getAttribute('data-dim-check');
+            toggleBuilderDim(d, ev.currentTarget.checked);
+          });
+        });
+      }
+    });
+  }
+
+  // Relationship Hub Sub-Tab navigation
+  document.querySelectorAll('.rel-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const t = e.currentTarget.getAttribute('data-rel-tab');
+      if (t) {
+        state.relationshipTab = t;
+        renderApp();
+      }
+    });
+  });
+
+  // Jump from Overview table to Categorical tab
+  document.querySelectorAll('[data-jump-rel-cat]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const raw = e.currentTarget.getAttribute('data-jump-rel-cat') || '';
+      const [cA, cB] = raw.split('|');
+      if (cA && cB) {
+        state.selectedCatColA = cA;
+        state.selectedCatColB = cB;
+      }
+      state.relationshipTab = 'categorical';
+      renderApp();
+    });
+  });
+
+  // Jump from Overview table to Numerical tab
+  document.querySelectorAll('[data-jump-rel-num]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const raw = e.currentTarget.getAttribute('data-jump-rel-num') || '';
+      const [nA, nB] = raw.split('|');
+      if (nA && nB) {
+        state.selectedNumColA = nA;
+        state.selectedNumColB = nB;
+      }
+      state.relationshipTab = 'numerical';
+      renderApp();
+    });
+  });
+
+  // Categorical selectors & mode
+  const relCat1 = document.getElementById('rel-cat-var1');
+  const relCat2 = document.getElementById('rel-cat-var2');
+  if (relCat1) relCat1.addEventListener('change', (e) => { state.selectedCatColA = e.target.value; renderApp(); });
+  if (relCat2) relCat2.addEventListener('change', (e) => { state.selectedCatColB = e.target.value; renderApp(); });
+
+  document.querySelectorAll('[data-contingency-mode]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      state.contingencyMode = e.currentTarget.getAttribute('data-contingency-mode');
+      renderApp();
+    });
+  });
+
+  // Numerical × Categorical selectors
+  const relNumMet = document.getElementById('rel-num-metric');
+  const relCatGrp = document.getElementById('rel-cat-group');
+  if (relNumMet) relNumMet.addEventListener('change', (e) => { state.selectedNumColA = e.target.value; renderApp(); });
+  if (relCatGrp) relCatGrp.addEventListener('change', (e) => { state.selectedCatColA = e.target.value; renderApp(); });
+
+  // Numerical × Numerical selectors
+  const relNum1 = document.getElementById('rel-num-var1');
+  const relNum2 = document.getElementById('rel-num-var2');
+  if (relNum1) relNum1.addEventListener('change', (e) => { state.selectedNumColA = e.target.value; renderApp(); });
+  if (relNum2) relNum2.addEventListener('change', (e) => { state.selectedNumColB = e.target.value; renderApp(); });
+
+  // Temporal selectors
+  const relTimeCol = document.getElementById('rel-time-col');
+  const relTimeCat = document.getElementById('rel-time-cat-col');
+  if (relTimeCol) relTimeCol.addEventListener('change', (e) => { state.selectedTimeCol = e.target.value; renderApp(); });
+  if (relTimeCat) relTimeCat.addEventListener('change', (e) => { state.selectedTimeCatCol = e.target.value; renderApp(); });
+
+  // 3-Way Explorer selectors
+  const rel3X = document.getElementById('rel-3way-x');
+  const rel3S1 = document.getElementById('rel-3way-s1');
+  const rel3S2 = document.getElementById('rel-3way-s2');
+  const rel3Met = document.getElementById('rel-3way-metric');
+  const rel3Pres = document.getElementById('rel-3way-pres');
+  if (rel3X) rel3X.addEventListener('change', (e) => { state.selected3WayX = e.target.value; renderApp(); });
+  if (rel3S1) rel3S1.addEventListener('change', (e) => { state.selected3WayS1 = e.target.value; renderApp(); });
+  if (rel3S2) rel3S2.addEventListener('change', (e) => { state.selected3WayS2 = e.target.value; renderApp(); });
+  if (rel3Met) rel3Met.addEventListener('change', (e) => { state.selected3WayMetric = e.target.value; renderApp(); });
+  if (rel3Pres) rel3Pres.addEventListener('change', (e) => { state.selected3WayPres = e.target.value; renderApp(); });
+
+  // Pin 3-way to dashboard button
+  const add3WayBtn = document.getElementById('rel-add-3way-chart');
+  if (add3WayBtn && state.dataset) {
+    add3WayBtn.addEventListener('click', () => {
+      const groupCols = [state.selected3WayS1, state.selected3WayS2].filter(Boolean);
+      const isNum = state.selected3WayMetric && state.selected3WayMetric !== '__count__' && state.selected3WayMetric !== '__pct__';
+      const form = {
+        type: state.selected3WayPres === 'facets' ? 'facets' : (state.selected3WayPres === 'stacked100' ? 'stacked100' : 'grouped'),
+        xCol: state.selected3WayX,
+        yCol: state.selected3WayMetric || '__count__',
+        groupCols,
+        presentation: state.selected3WayPres || 'composite',
+        topN: 15,
+        method: isNum ? 'sum' : 'count',
+        title: `${state.selected3WayX} by ${groupCols.join(' × ')}`
+      };
+      const customItem = buildCustomChartItem(form, state.dataset.headers, state.dataset.rows, state.dataset.columnTypes);
+      customItem.id = `custom-3way-${Date.now()}`;
+      customItem.isCustom = true;
+      customItem.supportedTypes = ['grouped', 'stacked', 'stacked100', 'facets', 'heatmap'];
+      state.customCharts.push(customItem);
+      state.visualizationsFilter = 'custom';
+      renderApp();
+    });
+  }
+
+  // Save Custom Chart Button
+  const saveCustomBtn = document.getElementById('save-custom-chart-btn');
+  if (saveCustomBtn && state.dataset) {
+    saveCustomBtn.addEventListener('click', () => {
+      const { headers, rows, columnTypes } = state.dataset;
+      const customItem = buildCustomChartItem(state.customChartForm, headers, rows, columnTypes);
+      customItem.id = `custom-${Date.now()}`;
+      customItem.isCustom = true;
+
+      // Add supported alternative types for user-friendly toggling
+      if (customItem.groupCols && customItem.groupCols.length > 0) {
+        customItem.supportedTypes = ['grouped', 'stacked', 'stacked100', 'facets', 'heatmap', 'line', 'area'];
+      } else if (customItem.aggregation && customItem.groupCol) {
+        customItem.supportedTypes = ['grouped', 'stacked', 'stacked100', 'facets', 'line', 'area', 'heatmap'];
+      } else if (customItem.type === 'bar') {
+        customItem.supportedTypes = ['bar', 'hbar', 'donut', 'pie', 'line', 'area'];
+      } else if (customItem.type === 'hbar') {
+        customItem.supportedTypes = ['hbar', 'bar', 'donut'];
+      } else if (customItem.type === 'donut' || customItem.type === 'pie') {
+        customItem.supportedTypes = ['donut', 'pie', 'bar', 'hbar'];
+      } else if (customItem.type === 'line' || customItem.type === 'area') {
+        customItem.supportedTypes = ['line', 'area', 'bar'];
+      } else if (customItem.type === 'histogram' || customItem.type === 'boxplot') {
+        customItem.supportedTypes = ['histogram', 'boxplot'];
+      } else if (customItem.type === 'scatter') {
+        customItem.supportedTypes = ['scatter'];
+      } else if (customItem.type === 'heatmap') {
+        customItem.supportedTypes = ['heatmap'];
+      } else {
+        customItem.supportedTypes = [customItem.type];
+      }
+
+      state.customCharts.push(customItem);
+      state.isCustomChartModalOpen = false;
+      state.visualizationsFilter = 'custom';
+      renderApp();
+    });
+  }
+
+  // Remove Custom Chart Button
+  document.querySelectorAll('.btn-remove-custom-chart').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const customId = e.currentTarget.getAttribute('data-custom-id');
+      if (customId) {
+        state.customCharts = state.customCharts.filter(c => c.id !== customId);
+        renderApp();
+      }
+    });
+  });
 }
+
+// Global SVG Hover Tooltip Listeners
+document.addEventListener('mouseover', (e) => {
+  const target = e.target.closest('[data-tooltip-title]');
+  const tooltip = document.getElementById('chart-tooltip');
+  if (target && tooltip) {
+    const title = target.getAttribute('data-tooltip-title');
+    const metric = target.getAttribute('data-tooltip-metric');
+    const sub = target.getAttribute('data-tooltip-sub');
+    tooltip.innerHTML = `
+      ${title ? `<div class="tt-title">${title}</div>` : ''}
+      ${metric ? `<div class="tt-metric">${metric}</div>` : ''}
+      ${sub ? `<div class="tt-sub">${sub}</div>` : ''}
+    `;
+    tooltip.style.display = 'block';
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  const tooltip = document.getElementById('chart-tooltip');
+  if (tooltip && tooltip.style.display === 'block') {
+    tooltip.style.left = `${e.clientX}px`;
+    tooltip.style.top = `${e.clientY}px`;
+  }
+});
+
+document.addEventListener('mouseout', (e) => {
+  const target = e.target.closest('[data-tooltip-title]');
+  const tooltip = document.getElementById('chart-tooltip');
+  if (target && tooltip) {
+    tooltip.style.display = 'none';
+  }
+});
 
 /**
  * Simple HTML Escaper

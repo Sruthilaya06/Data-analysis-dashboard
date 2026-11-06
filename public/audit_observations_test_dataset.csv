@@ -1,16 +1,17 @@
-Observation_ID,Observation_Date,Department,Location,Risk_Level,Status,Observation_Title,Observation_Details,Financial_Impact_INR
-OBS-001,2026-01-10,IT Audit,Bengaluru,High,Open,Unrestricted DB Admin Access,Administrative credentials shared across engineering teams without audit trail logging,850000
-OBS-002,2026-01-14,Finance,Mumbai,Medium,In Progress,ERP Segregation of Duties Conflict,Accounts payable approval threshold lacks secondary sign-off above INR 500000,320000
-OBS-003,2026-01-18,Operations,Delhi,Low,Closed,Delayed Inventory Physical Verification,Quarterly warehouse asset count delayed by two weeks across central depot,0
-OBS-004,2026-01-22,Compliance,Hyderabad,Critical,Under Review,Statutory Tax Filing Delay,Withholding tax documentation reconciliation discrepancy pending regulatory review,1500000
-OBS-005,2026-01-27,Information Security,Bengaluru,High,Open,Unpatched Perimeter Firewall Firmware,Critical CVE patch pending deployment on primary DMZ ingress firewalls,1200000
-OBS-006,2026-02-02,Human Resources,Mumbai,Low,Closed,Incomplete Background Verification Records,Contractor personnel onboarding checklist missing third-party address verification,0
-OBS-007,2026-02-06,Supply Chain,Chennai,Medium,In Progress,Single Source Vendor Dependency,Sole-source supplier contract active for essential server hardware components,650000
-OBS-008,2026-02-11,IT Audit,Hyderabad,Critical,Open,Disaster Recovery Backup Failure,Secondary cold site snapshot replication failed integrity test during quarterly drill,2400000
-OBS-009,2026-02-15,Finance,Delhi,High,Under Review,Unreconciled Intercompany Balances,Variance identified between subsidiary ledger and parent holding accounts,950000
-OBS-010,2026-02-19,Operations,Mumbai,Medium,Closed,Overtime Hours Authorization Gap,Production plant shift overtime logs missing supervisor countersignature,140000
-OBS-011,2026-02-24,Information Security,Bengaluru,Critical,Open,Exposed API Key in Client Bundle,Production API gateway access token embedded in public staging web application,3100000
-OBS-012,2026-03-01,Compliance,Chennai,Medium,In Progress,Data Protection Policy Training Gap,Annual GDPR and DPDP compliance refresher training overdue for 35 percent staff,250000
-OBS-013,2026-03-07,Supply Chain,Delhi,Low,Closed,Purchase Order Retrospective Approval,Five purchase requisitions issued post-invoice receipt by regional branch,90000
-OBS-014,2026-03-14,Finance,Bengaluru,High,Open,Uncollected Customer Receivables Over 180 Days,Aged trade receivables exceeding 180 days lack documented provisioning,1800000
-OBS-015,2026-03-21,Operations,Hyderabad,Low,Under Review,Logistics Transit Temperature Excursion,Cold chain temperature monitors registered intermittent calibration drift,180000
+Observation_ID,Observation_Date,Audit_Year,Quarter,Department,Location,Observation_Level,Audit_Type,Risk_Nature,Risk_Level,Status,Repeat_Flag,Observation_Title,Observation_Details,Financial_Impact_INR
+OBS-001,2026-01-10,2026,Q1,IT Audit,Bengaluru,Process,IT Audit,Operational,High,Open,Yes,Unrestricted DB Admin Access,Administrative credentials shared across engineering teams without audit trail logging,850000
+OBS-002,2026-01-14,2026,Q1,Finance,Mumbai,Entity,Financial Audit,Financial,Medium,In Progress,No,ERP Segregation of Duties Conflict,Accounts payable approval threshold lacks secondary sign-off above INR 500000,320000
+OBS-003,2026-01-18,2026,Q1,Operations,Delhi,Branch,Operational Audit,Compliance,Low,Closed,No,Delayed Inventory Physical Verification,Quarterly warehouse asset count delayed by two weeks across central depot,0
+OBS-004,2026-01-22,2026,Q1,Compliance,Hyderabad,Entity,Compliance Audit,Regulatory,Critical,Under Review,Yes,Statutory Tax Filing Delay,Withholding tax documentation reconciliation discrepancy pending regulatory review,1500000
+OBS-005,2026-01-27,2026,Q1,Information Security,Bengaluru,Process,Cybersecurity Audit,Operational,High,Open,Yes,Unpatched Perimeter Firewall Firmware,Critical CVE patch pending deployment on primary DMZ ingress firewalls,1200000
+OBS-006,2026-02-02,2026,Q1,Human Resources,Mumbai,Process,HR Audit,Compliance,Low,Closed,No,Incomplete Background Verification Records,Contractor personnel onboarding checklist missing third-party address verification,0
+OBS-007,2026-02-06,2026,Q1,Supply Chain,Chennai,Branch,Supply Chain Audit,Operational,Medium,In Progress,No,Single Source Vendor Dependency,Sole-source supplier contract active for essential server hardware components,650000
+OBS-008,2026-02-11,2026,Q1,IT Audit,Hyderabad,Entity,IT Audit,Operational,Critical,Open,Yes,Disaster Recovery Backup Failure,Secondary cold site snapshot replication failed integrity test during quarterly drill,2400000
+OBS-009,2026-02-15,2026,Q1,Finance,Delhi,Entity,Financial Audit,Financial,High,Under Review,No,Unreconciled Intercompany Balances,Variance identified between subsidiary ledger and parent holding accounts,950000
+OBS-010,2026-02-19,2026,Q1,Operations,Mumbai,Branch,Operational Audit,Compliance,Medium,Closed,No,Overtime Hours Authorization Gap,Production plant shift overtime logs missing supervisor countersignature,140000
+OBS-011,2026-02-24,2026,Q1,Information Security,Bengaluru,Process,Cybersecurity Audit,Operational,Critical,Open,Yes,Exposed API Key in Client Bundle,Production API gateway access token embedded in public staging web application,3100000
+OBS-012,2026-03-01,2026,Q1,Compliance,Chennai,Process,Compliance Audit,Regulatory,Medium,In Progress,No,Data Protection Policy Training Gap,Annual GDPR and DPDP compliance refresher training overdue for 35 percent staff,250000
+OBS-013,2026-03-07,2026,Q1,Supply Chain,Delhi,Branch,Supply Chain Audit,Compliance,Low,Closed,No,Purchase Order Retrospective Approval,Five purchase requisitions issued post-invoice receipt by regional branch,90000
+OBS-014,2026-03-14,2026,Q1,Finance,Bengaluru,Entity,Financial Audit,Financial,High,Open,Yes,Uncollected Customer Receivables Over 180 Days,Aged trade receivables exceeding 180 days lack documented provisioning,1800000
+OBS-015,2026-03-21,2026,Q1,Operations,Hyderabad,Process,Operational Audit,Operational,Low,Under Review,No,Logistics Transit Temperature Excursion,Cold chain temperature monitors registered intermittent calibration drift,180000
+
