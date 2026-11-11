@@ -744,8 +744,8 @@ function renderFileUploadSection() {
         </div>
       </div>
 
-      <div class="sample-action-bar" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-        <span class="sample-action-text" style="font-weight: 600;">Or load a verified test dataset:</span>
+      <div class="sample-action-bar">
+        <span class="sample-action-text">Or try a built-in sample dataset:</span>
         <div class="sample-buttons-grid">
           <button type="button" class="btn-sample-chip" data-sample="sales">
             Sales Dataset
@@ -1313,6 +1313,12 @@ function renderDataTablePreview(limitRows = null) {
   `;
 }
 
+
+
+
+
+
+
 /**
  * Render Overview View
  */
@@ -1322,11 +1328,8 @@ function renderOverviewView() {
       ${renderFileUploadSection()}
       ${renderDatasetInfoSection()}
     </div>
-
     ${renderOverviewKPISection()}
-
     ${renderOverviewChartsSection()}
-
     ${state.dataset ? `
       <section class="reserved-section" style="margin-top: 32px;">
         <div class="section-header">
