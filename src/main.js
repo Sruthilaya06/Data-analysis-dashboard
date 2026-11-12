@@ -3887,20 +3887,8 @@ function attachEventListeners() {
   document.querySelectorAll('.chart-export-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const card = e.currentTarget.closest('.chart-card');
-      const svg = card ? card.querySelector('svg') : null;
-      if (!svg) return;
-
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl = URL.createObjectURL(svgBlob);
-      const downloadLink = document.createElement('a');
-      downloadLink.href = svgUrl;
-      const chartId = e.currentTarget.getAttribute('data-export-chart') || 'chart';
-      downloadLink.download = `data_analysis_${chartId}.svg`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-      URL.revokeObjectURL(svgUrl);
+      const chartId = e.currentTarget.getAttribute('data-export-chart') || (card ? card.id.replace('card-', '') : 'chart');
+      exportChartAsSvg(card, chartId);
     });
   });
 
@@ -4308,6 +4296,241 @@ document.addEventListener('mouseout', (e) => {
 });
 
 /**
+ * Export Chart as High-Resolution Standalone Vector SVG
+ * Selects only the actual chart SVG inside .chart-card-body,
+ * strictly excluding any 15x15 UI buttons, navigation, or toolbar icons.
+ * Preserves original chart dimensions, viewBox, bars, lines, markers,
+ * axis lines, tick labels, colors, and typography, and includes
+ * embedded title, subtitle, and legend badges for standalone presentation use.
+ */
+function exportChartAsSvg(card, chartId = 'chart') {
+  if (!card) return;
+
+  // 1. Locate the chart body container strictly within this chart card
+  const body = card.querySelector('.chart-card-body');
+  if (!body) return;
+
+  // 2. Select the actual chart SVG inside the body, excluding any toolbar or button SVGs
+  const chartSvg = body.querySelector('svg.dashboard-svg-chart, svg.dashboard-donut-svg, svg.chart-svg') ||
+    Array.from(body.querySelectorAll('svg')).find(s => {
+      const w = s.getAttribute('width');
+      const h = s.getAttribute('height');
+      return w !== '15' && w !== '14' && w !== '16' && h !== '15';
+    });
+
+  if (!chartSvg) return;
+
+  // 3. Clone the chart SVG node
+  const cloned = chartSvg.cloneNode(true);
+
+  // 4. Extract title and subtitle from the card header
+  const titleEl = card.querySelector('.chart-card-title-group h4');
+  const subtitleEl = card.querySelector('.chart-card-title-group p');
+  const titleText = titleEl ? titleEl.textContent.trim() : '';
+  const subtitleText = subtitleEl ? subtitleEl.textContent.trim() : '';
+
+  // 5. Extract legend items (supports grouped bar, stacked bar, multi-line, donut, etc.)
+  const legendBadges = Array.from(card.querySelectorAll('.grouped-legend-badge, .donut-legend-item, .legend-item'));
+  const legendItems = [];
+  const seenLabels = new Set();
+
+  legendBadges.forEach(badge => {
+    const dot = badge.querySelector('.legend-color-dot, .donut-legend-dot, .legend-dot');
+    let color = '#f97316';
+    if (dot) {
+      color = dot.style.backgroundColor || (window.getComputedStyle ? window.getComputedStyle(dot).backgroundColor : '') || '#f97316';
+    }
+    const labelSpan = badge.querySelector('span:not(.legend-color-dot):not(.donut-legend-dot):not(.legend-dot)') || badge;
+    const text = (labelSpan ? labelSpan.textContent : badge.textContent).trim().split('\n')[0].trim();
+    if (text && !seenLabels.has(text)) {
+      seenLabels.add(text);
+      legendItems.push({ color, text });
+    }
+  });
+
+  // 6. Determine native SVG dimensions and viewBox
+  const vbAttr = (cloned.getAttribute('viewBox') || '').trim();
+  let vbX = 0, vbY = 0, vbW = 760, vbH = 400;
+  if (vbAttr) {
+    const parts = vbAttr.split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && !parts.some(isNaN)) {
+      [vbX, vbY, vbW, vbH] = parts;
+    }
+  } else {
+    vbW = parseFloat(cloned.getAttribute('width')) || 760;
+    vbH = parseFloat(cloned.getAttribute('height')) || 400;
+  }
+
+  // 7. Calculate header space needed for Title, Subtitle, and Legend
+  const hasTitle = Boolean(titleText);
+  const hasSubtitle = Boolean(subtitleText);
+  const hasLegend = legendItems.length > 0;
+
+  let extraTop = 0;
+  if (hasTitle || hasLegend) {
+    extraTop += 24; // Base top margin
+    if (hasTitle) extraTop += 22;
+    if (hasSubtitle) extraTop += 18;
+    if (hasTitle && hasLegend) extraTop += 10;
+    if (hasLegend) {
+      let curX = vbX + 24;
+      const maxX = vbX + vbW - 30;
+      let rows = 1;
+      legendItems.forEach(item => {
+        const itemW = 14 + (item.text.length * 7.5) + 16;
+        if (curX + itemW > maxX && curX > vbX + 24) {
+          rows++;
+          curX = vbX + 24 + itemW;
+        } else {
+          curX += itemW;
+        }
+      });
+      extraTop += rows * 22;
+    }
+    extraTop += 16; // Bottom padding + separator line margin
+  }
+
+  // 8. Create new root SVG with standard XML namespaces and clean styling
+  const svgNs = 'http://www.w3.org/2000/svg';
+  const newSvg = document.createElementNS(svgNs, 'svg');
+  newSvg.setAttribute('xmlns', svgNs);
+  newSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  newSvg.setAttribute('version', '1.1');
+  const totalHeight = vbH + extraTop;
+  newSvg.setAttribute('width', String(vbW));
+  newSvg.setAttribute('height', String(totalHeight));
+  newSvg.setAttribute('viewBox', `${vbX} 0 ${vbW} ${totalHeight}`);
+  if (cloned.getAttribute('aria-label')) {
+    newSvg.setAttribute('aria-label', cloned.getAttribute('aria-label'));
+  }
+
+  // Background white rect
+  const bgRect = document.createElementNS(svgNs, 'rect');
+  bgRect.setAttribute('x', String(vbX));
+  bgRect.setAttribute('y', '0');
+  bgRect.setAttribute('width', String(vbW));
+  bgRect.setAttribute('height', String(totalHeight));
+  bgRect.setAttribute('fill', '#ffffff');
+  newSvg.appendChild(bgRect);
+
+  // Typography and vector styles
+  const styleEl = document.createElementNS(svgNs, 'style');
+  styleEl.textContent = `
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .chart-grid-line { stroke: #f1f5f9; stroke-width: 1; }
+    .chart-axis-line { stroke: #cbd5e1; stroke-width: 1.5; }
+    .chart-tick-label { fill: #64748b; font-size: 11px; }
+  `;
+  newSvg.appendChild(styleEl);
+
+  // Preserve any defs (e.g. gradients) at root level
+  const defsList = cloned.querySelectorAll('defs');
+  defsList.forEach(d => newSvg.appendChild(d));
+
+  // Header group
+  if (extraTop > 0) {
+    const headerGroup = document.createElementNS(svgNs, 'g');
+    let currentY = 26;
+
+    if (hasTitle) {
+      const titleNode = document.createElementNS(svgNs, 'text');
+      titleNode.setAttribute('x', String(vbX + 24));
+      titleNode.setAttribute('y', String(currentY));
+      titleNode.setAttribute('font-size', '16');
+      titleNode.setAttribute('font-weight', '700');
+      titleNode.setAttribute('fill', '#0f172a');
+      titleNode.textContent = titleText;
+      headerGroup.appendChild(titleNode);
+      currentY += 18;
+
+      if (hasSubtitle) {
+        const subNode = document.createElementNS(svgNs, 'text');
+        subNode.setAttribute('x', String(vbX + 24));
+        subNode.setAttribute('y', String(currentY));
+        subNode.setAttribute('font-size', '11');
+        subNode.setAttribute('fill', '#64748b');
+        subNode.textContent = subtitleText;
+        headerGroup.appendChild(subNode);
+        currentY += 16;
+      }
+    }
+
+    if (hasLegend) {
+      currentY += (hasTitle ? 6 : 0);
+      let curX = vbX + 24;
+      const maxX = vbX + vbW - 30;
+
+      legendItems.forEach(item => {
+        const approxTextWidth = item.text.length * 7.5;
+        const itemWidth = 14 + approxTextWidth + 16;
+        if (curX + itemWidth > maxX && curX > vbX + 24) {
+          curX = vbX + 24;
+          currentY += 20;
+        }
+
+        const dot = document.createElementNS(svgNs, 'rect');
+        dot.setAttribute('x', String(curX));
+        dot.setAttribute('y', String(currentY - 9));
+        dot.setAttribute('width', '10');
+        dot.setAttribute('height', '10');
+        dot.setAttribute('rx', '2');
+        dot.setAttribute('fill', item.color);
+        headerGroup.appendChild(dot);
+
+        const lbl = document.createElementNS(svgNs, 'text');
+        lbl.setAttribute('x', String(curX + 14));
+        lbl.setAttribute('y', String(currentY));
+        lbl.setAttribute('font-size', '11');
+        lbl.setAttribute('font-weight', '500');
+        lbl.setAttribute('fill', '#334155');
+        lbl.textContent = item.text;
+        headerGroup.appendChild(lbl);
+
+        curX += itemWidth;
+      });
+      currentY += 16;
+    }
+
+    // Separator line
+    const divider = document.createElementNS(svgNs, 'line');
+    divider.setAttribute('x1', String(vbX + 20));
+    divider.setAttribute('y1', String(extraTop - 8));
+    divider.setAttribute('x2', String(vbX + vbW - 20));
+    divider.setAttribute('y2', String(extraTop - 8));
+    divider.setAttribute('stroke', '#e2e8f0');
+    divider.setAttribute('stroke-width', '1');
+    headerGroup.appendChild(divider);
+
+    newSvg.appendChild(headerGroup);
+  }
+
+  // 9. Append original chart elements inside a translation group
+  const chartContentGroup = document.createElementNS(svgNs, 'g');
+  if (extraTop > 0) {
+    chartContentGroup.setAttribute('transform', `translate(0, ${extraTop})`);
+  }
+  while (cloned.firstChild) {
+    chartContentGroup.appendChild(cloned.firstChild);
+  }
+  newSvg.appendChild(chartContentGroup);
+
+  // 10. Serialize and trigger download
+  const serializer = new XMLSerializer();
+  const svgString = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(newSvg);
+  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  const downloadLink = document.createElement('a');
+  downloadLink.href = svgUrl;
+  const safeFilenameId = String(chartId).replace(/[^a-zA-Z0-9_-]/g, '_');
+  downloadLink.download = `data_analysis_${safeFilenameId}.svg`;
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  document.body.removeChild(downloadLink);
+  setTimeout(() => URL.revokeObjectURL(svgUrl), 2000);
+}
+window.exportChartAsSvg = exportChartAsSvg;
+
+/**
  * Simple HTML Escaper
  */
 function escapeHtml(str) {
@@ -4321,6 +4544,10 @@ function escapeHtml(str) {
 }
 
 // Initial Boot
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    renderApp();
+  });
+} else {
   renderApp();
-});
+}

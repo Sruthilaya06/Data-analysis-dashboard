@@ -1,7 +1,15 @@
 import { defineConfig } from 'vite';
+import { viteSingleFile } from 'vite-plugin-singlefile';
 
 export default defineConfig({
-  base: './',
+  plugins: [viteSingleFile({ removeViteModuleLoader: true })],
+  build: {
+    target: 'esnext',
+    assetsInlineLimit: 100000000,
+    chunkSizeWarningLimit: 100000000,
+    cssCodeSplit: false,
+    modulePreload: false,
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,

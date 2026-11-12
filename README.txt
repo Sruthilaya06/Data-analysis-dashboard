@@ -1,130 +1,103 @@
 ===============================================================================
-                     DATA ANALYSIS DASHBOARD - PORTABLE EDITION
-                 Offline Enterprise Analytics & Visualization Suite
+                    DATA ANALYSIS DASHBOARD - SINGLE-FILE EDITION
+             Self-Contained Offline HTML Application for Enterprise Windows
 ===============================================================================
 
 1. PRODUCT OVERVIEW
 -------------------------------------------------------------------------------
-The Data Analysis Dashboard is a self-contained, offline-compatible Business
-Intelligence and Data Profiling application for Windows.
+DataAnalysisDashboard.html is a completely self-contained, single-file HTML5
+application designed for offline Business Intelligence, Data Profiling, and
+Multi-Dimensional Chart Visualization on restricted corporate laptops.
 
-Key Capabilities:
-  - Comprehensive single-sheet Excel (.xlsx, .xls) and CSV (.csv) analysis.
-  - Automatic column data typing (Numerical, Categorical, Date/Period, Identifier).
-  - Protected identifier/reference formatting (PAN, Mobile, Account, Observation IDs).
-  - Categorical distribution analysis with frequency tables and Pareto metrics.
-  - Numerical summary statistics, quartiles, IQR, variance, and standard deviation.
-  - Multi-dimensional custom chart builder with multiple categorical series.
-  - Native SVG charts (Grouped/Stacked Bar, Donut, Pie, Histogram, Box Plot, Scatter).
-  - Built-in verified sample datasets for instant preview testing.
+Key Features:
+  - 100% Self-Contained: All HTML, CSS stylesheets, JavaScript logic, native SVG
+    icons, and the SheetJS data engine are bundled inside one single .html file.
+  - Zero Local Server: Runs directly through the browser file:// protocol.
+  - Zero Launcher Scripts: No .bat batch files, no .ps1 PowerShell scripts,
+    and no command prompt windows required.
+  - Zero Runtime Dependencies: Requires no Node.js, npm, Python, or installer.
+  - Zero Internet Connectivity: Works completely offline with Wi-Fi disconnected.
+  - Single-Worksheet Excel Processing: Parses exclusively the first worksheet
+    (workbook.SheetNames[0]) of any uploaded Excel workbook (.xlsx, .xls).
+  - Protected Identifiers: Automatically detects and preserves account numbers,
+    PAN numbers, mobile numbers, and observation IDs as text without corruption.
+  - Multi-Dimensional Chart Builder: Native SVG grouped/stacked bar charts,
+    histograms, box plots, scatter charts, and multi-category series analysis.
+  - 4 Verified Sample Datasets: Built-in sales, audit, employee, and financial
+    datasets for instant zero-file exploration.
 
 
-2. ZERO-DEPENDENCY OFFLINE ARCHITECTURE
+2. HOW TO RUN THE APPLICATION
 -------------------------------------------------------------------------------
-This portable distribution has been specifically engineered to run in restricted
-corporate enterprise environments without administrative privileges:
+Step 1:
+  Copy "DataAnalysisDashboard.html" to any folder, Desktop, or USB drive on
+  your Windows laptop.
 
-  [x] NO Internet access required (100% offline).
-  [x] NO Node.js or npm installation required.
-  [x] NO Python installation required.
-  [x] NO installer or registry modifications required.
-  [x] NO external CDN stylesheets, fonts, or scripts (all embedded locally).
-  [x] NO cloud telemetry, tracking, or remote API calls.
-  [x] Strict loopback binding: Listens exclusively on 127.0.0.1 (Localhost).
-      Never exposed to the office local area network (LAN) or public internet.
+Step 2:
+  Double-click "DataAnalysisDashboard.html", OR right-click and select
+  "Open with" -> "Microsoft Edge" or "Google Chrome".
+
+Step 3:
+  The browser opens the complete dashboard immediately via:
+  file:///.../DataAnalysisDashboard.html
+
+Step 4:
+  Click "Browse Files" or drag & drop any Excel (.xlsx, .xls) or CSV (.csv)
+  dataset, or click any sample dataset chip (Sales, Audit, Employee, Financial).
 
 
-3. SYSTEM REQUIREMENTS
+3. DATA PRIVACY & BROWSER SECURITY ARCHITECTURE
 -------------------------------------------------------------------------------
-  - Operating System: Windows 10, Windows 11, Windows 8.1, or Windows 7.
-  - Runtime: Windows PowerShell 5.1 (built into Windows by default).
-  - Web Browser: Microsoft Edge, Google Chrome, Mozilla Firefox, or Brave.
-  - Hardware: Any standard office desktop or laptop.
-  - Package Size: Total distribution size is below 2 MB (~600 KB total).
+  a) 100% In-Memory Processing:
+     File ingestion uses the browser's native HTML5 FileReader API. All data
+     parsing, column type detection, statistical calculations, and SVG chart
+     generation happen entirely inside the browser's JavaScript memory sandbox.
+     Zero bytes are ever transmitted over a network or written to disk.
+
+  b) file:// Protocol & CORS Compatibility:
+     Standard Vite production builds use <script type="module"> which can trigger
+     CORS restrictions when opened via file:// in certain browser configurations.
+     DataAnalysisDashboard.html packages all application JavaScript in standard
+     deferred mode (<script defer>), guaranteeing 100% unrestricted execution
+     across Chrome, Edge, Firefox, and Safari on file:// paths.
+
+  c) Smart App Control & Windows Defender Compliance:
+     Because this distribution is a clean, static HTML5 document rather than an
+     executable (.exe), batch file (.bat), or PowerShell script (.ps1), it does
+     not trigger Smart App Control blocks, UAC elevation prompts, or SmartScreen
+     untrusted publisher warnings.
+
+  d) Known file:// Protocol Considerations:
+     - Browser security models intentionally isolate file:// pages from silent
+       background filesystem scanning. Uploading datasets requires explicit user
+       interaction (clicking "Browse Files" or dragging and dropping files onto
+       the dropzone), which complies fully with browser security sandboxes.
+     - Web storage (localStorage/sessionStorage) is available within the file's
+       origin, but no external files are ever requested.
 
 
-4. HOW TO LAUNCH THE APPLICATION
+4. DEVELOPMENT LAPTOP BUILD INSTRUCTIONS
 -------------------------------------------------------------------------------
-Method A (Recommended):
-  1. Extract the "DataAnalysisDashboard" folder to any local folder, Desktop,
-     or portable USB drive.
-  2. Double-click "Launch_Dashboard.bat".
-  3. A console window will initialize the local server and automatically open
-     your default web browser to:
-     http://127.0.0.1:8080/
-  4. Upload your Excel or CSV dataset, or click any of the built-in sample
-     dataset buttons (Sales, Audit, Employee, Financial) to begin analysis.
+To modify source files and re-generate DataAnalysisDashboard.html:
 
-Method B (Manual PowerShell execution):
-  If batch files (.bat) are restricted by policy, you can open PowerShell in
-  the folder and run:
-     powershell -ExecutionPolicy Bypass -File .\server.ps1
+  1. Prerequisites: Node.js 18+ and npm installed on development laptop.
+  2. Install dependencies:
+       npm install
+  3. Compile and generate single-file distribution:
+       npm run package
+  4. The output will be generated at:
+       ./DataAnalysisDashboard.html
+       ./dist/DataAnalysisDashboard.html
+       ./README.txt
+       ./dist/README.txt
+  5. The packaging script automatically measures all output files and enforces
+     the strict 2 MB package size ceiling.
 
 
-5. HOW TO STOP THE APPLICATION
+5. DISTRIBUTION PACKAGE SPECIFICATIONS
 -------------------------------------------------------------------------------
-  - Simply press CTRL + C in the running server console window, OR
-  - Close the command prompt / PowerShell console window.
-  - The local server will cleanly terminate and release the local port.
-
-
-6. CORPORATE IT SECURITY & POLICY COMPLIANCE
--------------------------------------------------------------------------------
-This application was engineered with strict security compliance for corporate
-and bank-grade IT environments:
-
-  a) Localhost Loopback Isolation (127.0.0.1):
-     The server binds strictly to the loopback adapter (127.0.0.1). It does not
-     listen on 0.0.0.0 or any network adapter. Other computers on the office
-     network cannot access the port.
-
-  b) Non-Privileged Execution:
-     No administrator credentials or UAC elevation are requested or needed.
-     The server binds to standard unprivileged high ports (8080 by default, with
-     automatic fallback to 8081-8099 if 8080 is in use).
-
-  c) Dual-Engine Fallback Architecture:
-     - Primary Engine: System.Net.HttpListener.
-     - Fallback Engine: Built-in user-mode System.Net.Sockets.TcpListener.
-     If corporate group policy blocks http.sys URL registrations for non-admin
-     accounts, server.ps1 automatically switches to a user-mode TCP socket
-     server with zero permissions required.
-
-  d) Directory Traversal Protection:
-     All incoming HTTP request paths are canonicalized using Path.GetFullPath.
-     Requests attempting directory traversal (e.g., ../) are immediately blocked
-     with HTTP 403 Forbidden.
-
-  e) PowerShell Execution Policy:
-     "Launch_Dashboard.bat" passes the flag "-ExecutionPolicy Bypass" solely to
-     its own child process. This does NOT alter the machine-wide or user-level
-     PowerShell execution policy in the Windows Registry.
-
-     If your organization's Group Policy enforces "ExecutionPolicy: AllSigned"
-     or blocks .ps1 scripts entirely:
-       You can paste the contents of server.ps1 into an interactive PowerShell
-       window, or contact your IT helpdesk to whitelist the local script.
-
-
-7. DATA PRIVACY & LOCAL PROCESSING GUARANTEE
--------------------------------------------------------------------------------
-  - All dataset parsing (Excel .xlsx and CSV .csv) is performed client-side
-    within the web browser using the compiled SheetJS engine.
-  - No row, column, header, or cell value is ever sent across a network or saved
-    to any external server.
-  - The local HTTP server only serves the static HTML, JavaScript, CSS, and SVG
-    application files from the folder to your browser.
-
-
-8. PACKAGE CONTENTS
--------------------------------------------------------------------------------
-  DataAnalysisDashboard/
-    |-- Launch_Dashboard.bat   Windows launcher script
-    |-- server.ps1             Localhost HTTP server (PowerShell 5.1)
-    |-- README.txt             Documentation and operational instructions
-    |-- index.html             Application HTML5 entry point (relative asset paths)
-    |-- favicon.svg            Local dashboard vector icon
-    |-- assets/
-         |-- index-*.js        Compiled application bundle (UI, Profiling, Charts, SheetJS)
-         |-- index-*.css       Application styling and typography
+  - Distribution Files: DataAnalysisDashboard.html, README.txt
+  - Total Distribution Size: ~590 KB (0.58 MB)
+  - Maximum Allowed Limit: 2,097,152 Bytes (2.000 MB)
+  - Remaining Headroom: > 1.45 MB
 ===============================================================================
